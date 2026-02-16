@@ -16,6 +16,9 @@
     "docker:build:backend": "docker build -t workout-backend:latest ./packages/backend",
     "docker:build:frontend": "docker build -t workout-frontend:latest ./packages/frontend"
   },
+  "overrides": {
+    "cross-spawn": "^7.0.5"
+  },
   "devDependencies": {
     "@types/node": "^20.10.0",
     "typescript": "^5.3.3"
