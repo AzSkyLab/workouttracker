@@ -165,6 +165,28 @@ Located in `packages/backend/src/services/progression.service.ts`:
 
 Progression stored in `ExerciseProgression` table with unique constraint on (userId, exerciseId).
 
+### AI Workout Plan Generator
+
+Uses LiteLLM as an API gateway to route requests to local Ollama instances running on multiple GPUs. The backend service (`packages/backend/src/services/ai.service.ts`) calls LiteLLM's OpenAI-compatible `/v1/chat/completions` endpoint.
+
+**LiteLLM Gateway:**
+- **In-cluster**: `http://litellm.litellm.svc.cluster.local:4000` (used by backend pods)
+- **External**: `https://llm.home.lab` (used for local dev)
+- **Auth**: Bearer token using `LITELLM_API_KEY` (key has `sk-` prefix)
+
+**Model naming convention** — models are prefixed by GPU backend:
+- `vm/*` — RTX 3090 (24GB) at `10.0.20.30` (e.g., `vm/qwen2.5-coder:32b`, `vm/gemma3:27b`)
+- `ws/*` — RTX 5090 (32GB) at `10.0.10.40` (e.g., `ws/qwen2.5-coder:32b`, `ws/qwen3:32b`)
+- `ollama/*` — Load-balanced across both backends
+
+**Flow**: User selects preferences → backend builds prompt with exercise library → calls LiteLLM → parses JSON response → maps AI exercise names to DB IDs (exact → alias → fuzzy match) → returns preview for user review → saves as workout templates.
+
+**Key files:**
+- Backend service: `packages/backend/src/services/ai.service.ts`
+- Routes: `packages/backend/src/routes/ai.routes.ts`
+- Shared types: `packages/shared/src/types/ai.types.ts`
+- Frontend: `packages/frontend/src/pages/AiPlanGenerator.tsx`
+
 ### Stopwatch Component
 
 Custom hook `useStopwatch` in `packages/frontend/src/hooks/useStopwatch.ts`:
