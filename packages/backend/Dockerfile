@@ -46,10 +46,8 @@ RUN apk add --no-cache openssl && \
 
 WORKDIR /app
 
-# Copy production node_modules from deps stage
+# Copy production node_modules from deps stage (hoisted to root by npm workspaces)
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/backend/node_modules ./packages/backend/node_modules
-COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 
 # Copy built files from builder
 COPY --from=builder /app/packages/backend/dist ./packages/backend/dist
