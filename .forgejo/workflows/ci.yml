@@ -1,3 +1,4 @@
+# CI pipeline for building and pushing Docker images to Harbor
 name: Build and Push
 on:
   push:
