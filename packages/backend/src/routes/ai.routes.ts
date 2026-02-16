@@ -12,6 +12,7 @@ const generatePlanSchema = z.object({
   availableEquipment: z.array(z.string()),
   focusAreas: z.array(z.string()),
   includeCardio: z.boolean(),
+  model: z.string().optional(),
 });
 
 const savePlanExerciseSchema = z.object({
@@ -38,6 +39,19 @@ const savePlanSchema = z.object({
 
 export async function aiRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
+
+  // List available Ollama models
+  fastify.get('/models', async (request, reply) => {
+    try {
+      const models = await aiService.getAvailableModels();
+      return models;
+    } catch (error: any) {
+      if (error.statusCode === 503) {
+        return reply.status(503).send({ error: error.message });
+      }
+      throw error;
+    }
+  });
 
   // Generate a plan preview (no DB writes)
   fastify.post('/generate-plan', async (request, reply) => {

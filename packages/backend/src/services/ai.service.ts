@@ -7,6 +7,7 @@ import {
   AiRawExercise,
   AiPlanPreview,
   AiPlanPreviewDay,
+  AiModelInfo,
   SaveWorkoutPlanDto,
 } from '@workout-tracker/shared';
 
@@ -45,6 +46,37 @@ const DAY_COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4
 
 export class AiService {
   /**
+   * Fetch available models from Ollama.
+   */
+  async getAvailableModels(): Promise<AiModelInfo[]> {
+    try {
+      const response = await fetch(`${OLLAMA_URL}/api/tags`);
+      if (!response.ok) {
+        throw new Error(`Ollama returned ${response.status}`);
+      }
+      const data: any = await response.json();
+      return (data.models || []).map((m: any) => ({
+        name: m.name as string,
+        size: m.size as number,
+        parameterSize: m.details?.parameter_size,
+      }));
+    } catch (error: any) {
+      if (
+        error.cause?.code === 'ECONNREFUSED' ||
+        error.cause?.code === 'ENOTFOUND' ||
+        error.message?.includes('ECONNREFUSED') ||
+        error.message?.includes('ENOTFOUND') ||
+        error.message?.includes('fetch failed')
+      ) {
+        throw Object.assign(new Error('Cannot connect to Ollama. Is it running?'), {
+          statusCode: 503,
+        });
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Generate a plan preview without saving to DB.
    * Returns mapped exercise data for the user to review.
    */
@@ -64,7 +96,8 @@ export class AiService {
     const prompt = this.buildPrompt(preferences, filtered);
 
     // 4. Call Ollama
-    const rawPlan = await this.callOllama(prompt);
+    const modelToUse = preferences.model || OLLAMA_MODEL;
+    const rawPlan = await this.callOllama(prompt, modelToUse);
 
     // 5. Map AI exercise names to real exercise IDs
     const { mappedDays, warnings } = this.mapExercisesToIds(rawPlan.days, exercises);
@@ -94,6 +127,7 @@ export class AiService {
       days,
       warnings,
       generationTimeSeconds,
+      model: modelToUse,
     };
   }
 
@@ -209,7 +243,7 @@ RULES:
     return { system, user };
   }
 
-  async callOllama(prompt: { system: string; user: string }): Promise<AiRawWorkoutPlan> {
+  async callOllama(prompt: { system: string; user: string }, model?: string): Promise<AiRawWorkoutPlan> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 300_000);
 
@@ -218,7 +252,7 @@ RULES:
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: OLLAMA_MODEL,
+          model: model || OLLAMA_MODEL,
           messages: [
             { role: 'system', content: prompt.system },
             { role: 'user', content: prompt.user },

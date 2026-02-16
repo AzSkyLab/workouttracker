@@ -5,6 +5,7 @@ import {
   FitnessGoal,
   ExperienceLevel,
   AiPlanPreview,
+  AiModelInfo,
   GenerateWorkoutPlanResponse,
 } from '@workout-tracker/shared';
 
@@ -41,6 +42,8 @@ export default function AiPlanGenerator() {
   // Data for selectors
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [muscleGroups, setMuscleGroups] = useState<{ id: string; name: string }[]>([]);
+  const [models, setModels] = useState<AiModelInfo[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('');
 
   // UI state
   const [phase, setPhase] = useState<Phase>('form');
@@ -51,12 +54,19 @@ export default function AiPlanGenerator() {
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    Promise.all([exerciseAPI.getCategories(), exerciseAPI.getMuscleGroups()]).then(
-      ([catRes, mgRes]) => {
-        setCategories(catRes.data);
-        setMuscleGroups(mgRes.data);
+    Promise.all([
+      exerciseAPI.getCategories(),
+      exerciseAPI.getMuscleGroups(),
+      aiAPI.getModels().catch(() => ({ data: [] })),
+    ]).then(([catRes, mgRes, modelsRes]) => {
+      setCategories(catRes.data);
+      setMuscleGroups(mgRes.data);
+      const modelList: AiModelInfo[] = modelsRes.data;
+      setModels(modelList);
+      if (modelList.length > 0 && !selectedModel) {
+        setSelectedModel(modelList[0].name);
       }
-    );
+    });
   }, []);
 
   const toggleItem = (list: string[], setList: (v: string[]) => void, item: string) => {
@@ -76,6 +86,7 @@ export default function AiPlanGenerator() {
         availableEquipment,
         focusAreas,
         includeCardio,
+        ...(selectedModel && { model: selectedModel }),
       });
       setPreview(response.data);
       setPhase('review');
@@ -161,6 +172,34 @@ export default function AiPlanGenerator() {
             }}
           >
             <p style={{ color: 'var(--danger)', fontWeight: 500 }}>{error}</p>
+          </div>
+        )}
+
+        {models.length > 0 && (
+          <div className="card" style={{ marginBottom: '1.5rem' }}>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '1rem' }}>
+              AI Model
+            </h2>
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.625rem 0.75rem',
+                borderRadius: '0.5rem',
+                border: '2px solid var(--border)',
+                backgroundColor: 'var(--surface)',
+                color: 'var(--text)',
+                fontSize: '0.875rem',
+                cursor: 'pointer',
+              }}
+            >
+              {models.map((m) => (
+                <option key={m.name} value={m.name}>
+                  {m.name}{m.parameterSize ? ` (${m.parameterSize})` : ''}
+                </option>
+              ))}
+            </select>
           </div>
         )}
 
@@ -394,7 +433,7 @@ export default function AiPlanGenerator() {
         >
           <p style={{ fontWeight: 600, fontSize: '1.125rem' }}>{preview.planName}</p>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-            Generated in {preview.generationTimeSeconds}s &middot; {preview.days.length} workout{preview.days.length !== 1 ? 's' : ''} &middot; Review below and save when ready
+            Generated in {preview.generationTimeSeconds}s{preview.model ? ` with ${preview.model}` : ''} &middot; {preview.days.length} workout{preview.days.length !== 1 ? 's' : ''} &middot; Review below and save when ready
           </p>
         </div>
 

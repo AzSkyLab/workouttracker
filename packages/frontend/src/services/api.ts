@@ -165,6 +165,7 @@ export const adminAPI = {
 
 // AI Plan Generator API
 export const aiAPI = {
+  getModels: () => api.get('/api/v1/ai/models'),
   generatePlan: (data: any) =>
     api.post('/api/v1/ai/generate-plan', data, { timeout: 310_000 }),
   savePlan: (data: any) =>

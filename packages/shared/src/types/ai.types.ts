@@ -20,6 +20,13 @@ export interface GenerateWorkoutPlanDto {
   availableEquipment: string[];
   focusAreas: string[];
   includeCardio: boolean;
+  model?: string;
+}
+
+export interface AiModelInfo {
+  name: string;
+  size: number;
+  parameterSize?: string;
 }
 
 export interface GenerateWorkoutPlanResponse {
@@ -96,6 +103,7 @@ export interface AiPlanPreview {
   days: AiPlanPreviewDay[];
   warnings: string[];
   generationTimeSeconds: number;
+  model?: string;
 }
 
 // Payload for saving a reviewed plan
