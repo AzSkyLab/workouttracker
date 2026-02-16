@@ -5,6 +5,9 @@ import {
   AiRawWorkoutPlan,
   AiRawWorkoutDay,
   AiRawExercise,
+  AiPlanPreview,
+  AiPlanPreviewDay,
+  SaveWorkoutPlanDto,
 } from '@workout-tracker/shared';
 
 interface ExerciseRecord {
@@ -25,6 +28,7 @@ interface MappedExercise {
   durationMinutes?: number;
   restSeconds?: number;
   notes?: string;
+  reason?: string;
 }
 
 interface MappedDay {
@@ -40,10 +44,16 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5-coder:32b';
 const DAY_COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 export class AiService {
-  async generateWorkoutPlan(
+  /**
+   * Generate a plan preview without saving to DB.
+   * Returns mapped exercise data for the user to review.
+   */
+  async previewWorkoutPlan(
     userId: string,
     preferences: GenerateWorkoutPlanDto
-  ): Promise<GenerateWorkoutPlanResponse> {
+  ): Promise<AiPlanPreview> {
+    const startTime = Date.now();
+
     // 1. Fetch available exercises
     const exercises = await this.getExerciseLibrary(userId);
 
@@ -59,13 +69,48 @@ export class AiService {
     // 5. Map AI exercise names to real exercise IDs
     const { mappedDays, warnings } = this.mapExercisesToIds(rawPlan.days, exercises);
 
-    // 6. Create templates in database
-    const templates = await this.createTemplates(userId, rawPlan.planName, mappedDays);
+    const generationTimeSeconds = Math.round((Date.now() - startTime) / 1000);
+
+    // 6. Build preview with colors assigned
+    const days: AiPlanPreviewDay[] = mappedDays.map((day, i) => ({
+      dayName: day.dayName,
+      description: day.description,
+      color: DAY_COLORS[i % DAY_COLORS.length],
+      exercises: day.exercises.map((ex) => ({
+        exerciseId: ex.exerciseId,
+        name: ex.name,
+        type: ex.type,
+        sets: ex.sets,
+        reps: ex.reps,
+        durationMinutes: ex.durationMinutes,
+        restSeconds: ex.restSeconds,
+        notes: ex.notes,
+        reason: ex.reason,
+      })),
+    }));
 
     return {
       planName: rawPlan.planName,
-      templates,
+      days,
       warnings,
+      generationTimeSeconds,
+    };
+  }
+
+  /**
+   * Save a reviewed plan to the database as workout templates.
+   */
+  async saveWorkoutPlan(
+    userId: string,
+    plan: SaveWorkoutPlanDto
+  ): Promise<GenerateWorkoutPlanResponse> {
+    const templates = await this.createTemplates(userId, plan);
+
+    return {
+      planName: plan.planName,
+      templates,
+      warnings: [],
+      generationTimeSeconds: 0,
     };
   }
 
@@ -138,7 +183,8 @@ RESPONSE FORMAT — return ONLY this JSON structure, no other text:
           "sets": 3,
           "reps": 10,
           "restSeconds": 90,
-          "notes": "Optional form cue"
+          "notes": "Optional form cue",
+          "reason": "Brief explanation of why this exercise was selected for this day"
         }
       ]
     }
@@ -157,7 +203,8 @@ RULES:
 - Each day should have 4-8 exercises depending on session duration.
 - Make sure exercise selection aligns with the stated focus areas.
 - Use a logical workout split (e.g., push/pull/legs, upper/lower, full body).
-- Include warm-up and compound movements first, isolation movements last.`;
+- Include warm-up and compound movements first, isolation movements last.
+- Always include a "reason" field for each exercise explaining why it was chosen.`;
 
     return { system, user };
   }
@@ -276,6 +323,7 @@ RULES:
             durationMinutes: rawEx.durationMinutes,
             restSeconds: rawEx.restSeconds,
             notes: rawEx.notes,
+            reason: rawEx.reason,
           });
         } else {
           warnings.push(`Skipped "${rawEx.name}" — no matching exercise found`);
@@ -313,31 +361,47 @@ RULES:
 
   async createTemplates(
     userId: string,
-    planName: string,
-    mappedDays: MappedDay[]
+    plan: SaveWorkoutPlanDto
   ): Promise<GenerateWorkoutPlanResponse['templates']> {
     return prisma.$transaction(async (tx) => {
       const templates: GenerateWorkoutPlanResponse['templates'] = [];
 
-      for (let i = 0; i < mappedDays.length; i++) {
-        const day = mappedDays[i];
+      for (let i = 0; i < plan.days.length; i++) {
+        const day = plan.days[i];
+
+        // Look up exercise types for proper field mapping
+        const exerciseIds = day.exercises.map((ex) => ex.exerciseId);
+        const exerciseRecords = await tx.exercise.findMany({
+          where: { id: { in: exerciseIds } },
+          select: { id: true, type: true },
+        });
+        const typeMap = new Map(exerciseRecords.map((e) => [e.id, e.type]));
 
         const template = await tx.workoutTemplate.create({
           data: {
             userId,
             name: day.dayName,
             description: day.description,
-            color: DAY_COLORS[i % DAY_COLORS.length],
+            color: day.color,
             templateExercises: {
-              create: day.exercises.map((ex, idx) => ({
-                exerciseId: ex.exerciseId,
-                orderIndex: idx,
-                targetSets: ex.type === 'STRENGTH' ? ex.sets : (ex.sets || 1),
-                targetReps: ex.type === 'STRENGTH' ? (ex.reps ?? 10) : null,
-                targetDurationMinutes: ex.type === 'CARDIO' ? (ex.durationMinutes ?? null) : null,
-                restBetweenSets: ex.restSeconds ?? 90,
-                notes: ex.notes ?? null,
-              })),
+              create: day.exercises.map((ex, idx) => {
+                const exType = typeMap.get(ex.exerciseId) || 'STRENGTH';
+                // Combine reason and notes into the notes field
+                const noteParts: string[] = [];
+                if (ex.reason) noteParts.push(ex.reason);
+                if (ex.notes) noteParts.push(ex.notes);
+                const combinedNotes = noteParts.length > 0 ? noteParts.join(' | ') : null;
+
+                return {
+                  exerciseId: ex.exerciseId,
+                  orderIndex: idx,
+                  targetSets: exType === 'STRENGTH' ? ex.sets : (ex.sets || 1),
+                  targetReps: exType === 'STRENGTH' ? (ex.reps ?? 10) : null,
+                  targetDurationMinutes: exType === 'CARDIO' ? (ex.durationMinutes ?? null) : null,
+                  restBetweenSets: ex.restSeconds ?? 90,
+                  notes: combinedNotes,
+                };
+              }),
             },
           },
           include: {

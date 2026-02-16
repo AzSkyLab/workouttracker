@@ -4,10 +4,11 @@ import { aiAPI, exerciseAPI } from '../services/api';
 import {
   FitnessGoal,
   ExperienceLevel,
+  AiPlanPreview,
   GenerateWorkoutPlanResponse,
 } from '@workout-tracker/shared';
 
-type Phase = 'form' | 'generating' | 'results';
+type Phase = 'form' | 'generating' | 'review' | 'results';
 
 const GOALS = [
   { value: FitnessGoal.MUSCLE_GAIN, label: 'Muscle Gain' },
@@ -43,8 +44,10 @@ export default function AiPlanGenerator() {
 
   // UI state
   const [phase, setPhase] = useState<Phase>('form');
-  const [result, setResult] = useState<GenerateWorkoutPlanResponse | null>(null);
+  const [preview, setPreview] = useState<AiPlanPreview | null>(null);
+  const [saveResult, setSaveResult] = useState<GenerateWorkoutPlanResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -74,14 +77,40 @@ export default function AiPlanGenerator() {
         focusAreas,
         includeCardio,
       });
-      setResult(response.data);
-      setPhase('results');
+      setPreview(response.data);
+      setPhase('review');
     } catch (err: any) {
       const msg =
         err.response?.data?.error || err.message || 'Failed to generate plan';
       setError(msg);
       setPhase('form');
     }
+  };
+
+  const handleSave = async () => {
+    if (!preview) return;
+    setSaving(true);
+    setError(null);
+
+    try {
+      const response = await aiAPI.savePlan({
+        planName: preview.planName,
+        days: preview.days,
+      });
+      setSaveResult(response.data);
+      setPhase('results');
+    } catch (err: any) {
+      const msg =
+        err.response?.data?.error || err.message || 'Failed to save plan';
+      setError(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDiscard = () => {
+    setPreview(null);
+    setPhase('form');
   };
 
   const handleCancel = () => {
@@ -337,19 +366,197 @@ export default function AiPlanGenerator() {
     );
   }
 
+  // ── REVIEW PHASE ──
+  if (phase === 'review' && preview) {
+    return (
+      <div>
+        <div style={{ marginBottom: '2rem' }}>
+          <button
+            onClick={handleDiscard}
+            className="btn btn-outline"
+            style={{ marginBottom: '1rem', fontSize: '0.875rem' }}
+          >
+            &larr; Back to Form
+          </button>
+          <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+            Review Your Plan
+          </h1>
+        </div>
+
+        {/* Success banner with generation time */}
+        <div
+          className="card"
+          style={{
+            marginBottom: '1.5rem',
+            borderLeft: '4px solid var(--success, #10b981)',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          }}
+        >
+          <p style={{ fontWeight: 600, fontSize: '1.125rem' }}>{preview.planName}</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+            Generated in {preview.generationTimeSeconds}s &middot; {preview.days.length} workout{preview.days.length !== 1 ? 's' : ''} &middot; Review below and save when ready
+          </p>
+        </div>
+
+        {/* Error from save attempt */}
+        {error && (
+          <div
+            className="card"
+            style={{
+              marginBottom: '1.5rem',
+              borderLeft: '4px solid var(--danger)',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            }}
+          >
+            <p style={{ color: 'var(--danger)', fontWeight: 500 }}>{error}</p>
+          </div>
+        )}
+
+        {/* Warnings */}
+        {preview.warnings.length > 0 && (
+          <div
+            className="card"
+            style={{
+              marginBottom: '1.5rem',
+              borderLeft: '4px solid var(--warning, #f59e0b)',
+              backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            }}
+          >
+            <p style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Notes</p>
+            <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.875rem' }}>
+              {preview.warnings.map((w, i) => (
+                <li key={i} style={{ color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                  {w}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Day cards with exercise details */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+            gap: '1.5rem',
+            marginBottom: '2rem',
+          }}
+        >
+          {preview.days.map((day, dayIdx) => (
+            <div
+              key={dayIdx}
+              className="card"
+              style={{ position: 'relative', overflow: 'hidden' }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: '6px',
+                  backgroundColor: day.color,
+                }}
+              />
+              <div style={{ paddingTop: '0.5rem' }}>
+                <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                  {day.dayName}
+                </h3>
+                {day.description && (
+                  <p
+                    style={{
+                      color: 'var(--text-secondary)',
+                      fontSize: '0.875rem',
+                      marginBottom: '0.75rem',
+                    }}
+                  >
+                    {day.description}
+                  </p>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {day.exercises.map((ex, exIdx) => (
+                    <div
+                      key={exIdx}
+                      style={{
+                        padding: '0.5rem 0.625rem',
+                        backgroundColor: 'var(--background)',
+                        borderRadius: '0.375rem',
+                        fontSize: '0.875rem',
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: ex.reason ? '0.25rem' : 0,
+                        }}
+                      >
+                        <span style={{ fontWeight: 500 }}>{ex.name}</span>
+                        <span
+                          style={{
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.8rem',
+                            whiteSpace: 'nowrap',
+                            marginLeft: '0.75rem',
+                          }}
+                        >
+                          {ex.durationMinutes
+                            ? `${ex.durationMinutes} min`
+                            : `${ex.sets} x ${ex.reps}`}
+                          {ex.restSeconds ? ` · ${ex.restSeconds}s rest` : ''}
+                        </span>
+                      </div>
+                      {ex.reason && (
+                        <p
+                          style={{
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.775rem',
+                            fontStyle: 'italic',
+                            margin: 0,
+                            lineHeight: 1.3,
+                          }}
+                        >
+                          {ex.reason}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Action buttons */}
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="btn btn-primary"
+            style={{ flex: 2, minWidth: '200px', padding: '0.875rem', fontSize: '1rem', fontWeight: 600 }}
+          >
+            {saving ? 'Saving...' : 'Save Plan'}
+          </button>
+          <button
+            onClick={handleDiscard}
+            disabled={saving}
+            className="btn btn-outline"
+            style={{ flex: 1, minWidth: '120px', padding: '0.875rem' }}
+          >
+            Discard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ── RESULTS PHASE ──
   return (
     <div>
       <div style={{ marginBottom: '2rem' }}>
-        <button
-          onClick={() => navigate('/templates')}
-          className="btn btn-outline"
-          style={{ marginBottom: '1rem', fontSize: '0.875rem' }}
-        >
-          &larr; Back to Templates
-        </button>
         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-          Plan Generated!
+          Plan Saved!
         </h1>
       </div>
 
@@ -357,104 +564,15 @@ export default function AiPlanGenerator() {
       <div
         className="card"
         style={{
-          marginBottom: '1.5rem',
+          marginBottom: '2rem',
           borderLeft: '4px solid var(--success, #10b981)',
           backgroundColor: 'rgba(16, 185, 129, 0.1)',
         }}
       >
-        <p style={{ fontWeight: 600, fontSize: '1.125rem' }}>{result?.planName}</p>
+        <p style={{ fontWeight: 600, fontSize: '1.125rem' }}>{saveResult?.planName}</p>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-          {result?.templates.length} workout templates have been created and saved.
+          {saveResult?.templates.length} template{saveResult?.templates.length !== 1 ? 's' : ''} created and saved to your library.
         </p>
-      </div>
-
-      {/* Warnings */}
-      {result?.warnings && result.warnings.length > 0 && (
-        <div
-          className="card"
-          style={{
-            marginBottom: '1.5rem',
-            borderLeft: '4px solid var(--warning, #f59e0b)',
-            backgroundColor: 'rgba(245, 158, 11, 0.1)',
-          }}
-        >
-          <p style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Notes</p>
-          <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.875rem' }}>
-            {result.warnings.map((w, i) => (
-              <li key={i} style={{ color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                {w}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Template cards */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-          gap: '1.5rem',
-          marginBottom: '2rem',
-        }}
-      >
-        {result?.templates.map((template) => (
-          <div
-            key={template.id}
-            className="card"
-            style={{ position: 'relative', overflow: 'hidden' }}
-          >
-            <div
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                height: '6px',
-                backgroundColor: template.color || '#3b82f6',
-              }}
-            />
-            <div style={{ paddingTop: '0.5rem' }}>
-              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                {template.name}
-              </h3>
-              {template.description && (
-                <p
-                  style={{
-                    color: 'var(--text-secondary)',
-                    fontSize: '0.875rem',
-                    marginBottom: '0.75rem',
-                  }}
-                >
-                  {template.description}
-                </p>
-              )}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-                {template.templateExercises?.map((te) => (
-                  <div
-                    key={te.id}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '0.375rem 0.5rem',
-                      backgroundColor: 'var(--background)',
-                      borderRadius: '0.25rem',
-                      fontSize: '0.875rem',
-                    }}
-                  >
-                    <span style={{ fontWeight: 500 }}>{te.exercise?.name}</span>
-                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                      {te.targetDurationMinutes
-                        ? `${te.targetDurationMinutes} min`
-                        : `${te.targetSets} x ${te.targetReps}`}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        ))}
       </div>
 
       {/* Action buttons */}
@@ -476,7 +594,8 @@ export default function AiPlanGenerator() {
         <button
           onClick={() => {
             setPhase('form');
-            setResult(null);
+            setPreview(null);
+            setSaveResult(null);
           }}
           className="btn btn-outline"
           style={{ flex: 1, minWidth: '200px', padding: '0.75rem' }}

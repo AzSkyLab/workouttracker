@@ -14,13 +14,36 @@ const generatePlanSchema = z.object({
   includeCardio: z.boolean(),
 });
 
+const savePlanExerciseSchema = z.object({
+  exerciseId: z.string().uuid(),
+  sets: z.number().int().min(1),
+  reps: z.number().int().min(1).optional(),
+  durationMinutes: z.number().min(1).optional(),
+  restSeconds: z.number().int().min(0).optional(),
+  notes: z.string().optional(),
+  reason: z.string().optional(),
+});
+
+const savePlanDaySchema = z.object({
+  dayName: z.string().min(1),
+  description: z.string(),
+  color: z.string(),
+  exercises: z.array(savePlanExerciseSchema).min(1),
+});
+
+const savePlanSchema = z.object({
+  planName: z.string().min(1),
+  days: z.array(savePlanDaySchema).min(1),
+});
+
 export async function aiRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
 
+  // Generate a plan preview (no DB writes)
   fastify.post('/generate-plan', async (request, reply) => {
     try {
       const data = generatePlanSchema.parse(request.body);
-      const result = await aiService.generateWorkoutPlan(request.user!.userId, data);
+      const result = await aiService.previewWorkoutPlan(request.user!.userId, data);
       return result;
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -34,6 +57,20 @@ export async function aiRoutes(fastify: FastifyInstance) {
       }
       if (error.statusCode === 502) {
         return reply.status(502).send({ error: error.message });
+      }
+      throw error;
+    }
+  });
+
+  // Save a reviewed plan to the database
+  fastify.post('/save-plan', async (request, reply) => {
+    try {
+      const data = savePlanSchema.parse(request.body);
+      const result = await aiService.saveWorkoutPlan(request.user!.userId, data);
+      return result;
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Validation error', details: error.errors });
       }
       throw error;
     }

@@ -36,6 +36,8 @@ export interface GenerateWorkoutPlanResponse {
       targetSets?: number | null;
       targetReps?: number | null;
       targetDurationMinutes?: number | null;
+      restBetweenSets?: number | null;
+      notes?: string | null;
       exercise?: {
         id: string;
         name: string;
@@ -44,6 +46,7 @@ export interface GenerateWorkoutPlanResponse {
     }>;
   }>;
   warnings: string[];
+  generationTimeSeconds: number;
 }
 
 // Internal types for raw AI output before mapping to real exercise IDs
@@ -54,6 +57,7 @@ export interface AiRawExercise {
   durationMinutes?: number;
   restSeconds?: number;
   notes?: string;
+  reason?: string;
 }
 
 export interface AiRawWorkoutDay {
@@ -65,4 +69,52 @@ export interface AiRawWorkoutDay {
 export interface AiRawWorkoutPlan {
   planName: string;
   days: AiRawWorkoutDay[];
+}
+
+// Preview types for the two-step generate → review → save flow
+export interface AiPlanPreviewExercise {
+  exerciseId: string;
+  name: string;
+  type: string;
+  sets: number;
+  reps?: number;
+  durationMinutes?: number;
+  restSeconds?: number;
+  notes?: string;
+  reason?: string;
+}
+
+export interface AiPlanPreviewDay {
+  dayName: string;
+  description: string;
+  color: string;
+  exercises: AiPlanPreviewExercise[];
+}
+
+export interface AiPlanPreview {
+  planName: string;
+  days: AiPlanPreviewDay[];
+  warnings: string[];
+  generationTimeSeconds: number;
+}
+
+// Payload for saving a reviewed plan
+export interface SaveWorkoutPlanDay {
+  dayName: string;
+  description: string;
+  color: string;
+  exercises: Array<{
+    exerciseId: string;
+    sets: number;
+    reps?: number;
+    durationMinutes?: number;
+    restSeconds?: number;
+    notes?: string;
+    reason?: string;
+  }>;
+}
+
+export interface SaveWorkoutPlanDto {
+  planName: string;
+  days: SaveWorkoutPlanDay[];
 }

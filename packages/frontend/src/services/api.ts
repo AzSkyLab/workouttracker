@@ -167,6 +167,8 @@ export const adminAPI = {
 export const aiAPI = {
   generatePlan: (data: any) =>
     api.post('/api/v1/ai/generate-plan', data, { timeout: 310_000 }),
+  savePlan: (data: any) =>
+    api.post('/api/v1/ai/save-plan', data),
 };
 
 export default api;
