@@ -8,9 +8,12 @@ on:
 
 jobs:
   build-backend:
-    runs-on: docker
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install Docker CLI
+        run: |
+          apt-get update && apt-get install -y docker.io
       - name: Login to Harbor
         run: echo "${{ secrets.HARBOR_PASSWORD }}" | docker login registry.home.lab -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin
       - name: Build and push backend
@@ -20,9 +23,12 @@ jobs:
           docker push registry.home.lab/csgit34/workout-backend:latest
 
   build-frontend:
-    runs-on: docker
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install Docker CLI
+        run: |
+          apt-get update && apt-get install -y docker.io
       - name: Login to Harbor
         run: echo "${{ secrets.HARBOR_PASSWORD }}" | docker login registry.home.lab -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin
       - name: Build and push frontend
