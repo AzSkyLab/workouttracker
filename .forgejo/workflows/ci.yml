@@ -1,0 +1,32 @@
+name: Build and Push
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - "k8s/**"
+      - "*.md"
+
+jobs:
+  build-backend:
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to Harbor
+        run: echo "${{ secrets.HARBOR_PASSWORD }}" | docker login registry.home.lab -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin
+      - name: Build and push backend
+        run: |
+          docker build -t registry.home.lab/csgit34/workout-backend:${{ github.sha }} -t registry.home.lab/csgit34/workout-backend:latest -f packages/backend/Dockerfile .
+          docker push registry.home.lab/csgit34/workout-backend:${{ github.sha }}
+          docker push registry.home.lab/csgit34/workout-backend:latest
+
+  build-frontend:
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to Harbor
+        run: echo "${{ secrets.HARBOR_PASSWORD }}" | docker login registry.home.lab -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin
+      - name: Build and push frontend
+        run: |
+          docker build -t registry.home.lab/csgit34/workout-frontend:${{ github.sha }} -t registry.home.lab/csgit34/workout-frontend:latest -f packages/frontend/Dockerfile .
+          docker push registry.home.lab/csgit34/workout-frontend:${{ github.sha }}
+          docker push registry.home.lab/csgit34/workout-frontend:latest
