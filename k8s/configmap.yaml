@@ -9,5 +9,5 @@ data:
   JWT_ACCESS_EXPIRES_IN: "15m"
   JWT_REFRESH_EXPIRES_IN: "7d"
   FRONTEND_URL: "https://workout.home.lab"
-  OLLAMA_URL: "http://10.0.20.30:11434"
-  OLLAMA_MODEL: "qwen2.5-coder:32b"
+  LITELLM_URL: "http://litellm.litellm.svc.cluster.local:4000"
+  LITELLM_MODEL: "vm/qwen2.5-coder:32b"

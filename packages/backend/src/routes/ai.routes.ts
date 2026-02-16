@@ -40,7 +40,7 @@ const savePlanSchema = z.object({
 export async function aiRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
 
-  // List available Ollama models
+  // List available LiteLLM models
   fastify.get('/models', async (request, reply) => {
     try {
       const models = await aiService.getAvailableModels();

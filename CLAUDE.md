@@ -188,6 +188,9 @@ JWT_REFRESH_EXPIRES_IN="7d"
 PORT=3000
 NODE_ENV="development"
 FRONTEND_URL="http://localhost:5173"  # Used for CORS
+LITELLM_URL="https://llm.home.lab"
+LITELLM_MODEL="vm/qwen2.5-coder:32b"
+LITELLM_API_KEY="your-litellm-api-key"
 ```
 
 Copy from `.env.example` in that directory.

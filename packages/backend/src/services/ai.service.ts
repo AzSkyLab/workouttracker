@@ -38,27 +38,32 @@ interface MappedDay {
   exercises: MappedExercise[];
 }
 
-const OLLAMA_URL = process.env.OLLAMA_URL || 'http://ollama.home.lab:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5-coder:32b';
+const LITELLM_URL = process.env.LITELLM_URL || 'https://llm.home.lab';
+const LITELLM_MODEL = process.env.LITELLM_MODEL || 'vm/qwen2.5-coder:32b';
+const LITELLM_API_KEY = process.env.LITELLM_API_KEY || '';
 
 // Day colors for generated templates
 const DAY_COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 export class AiService {
   /**
-   * Fetch available models from Ollama.
+   * Fetch available models from LiteLLM.
    */
   async getAvailableModels(): Promise<AiModelInfo[]> {
     try {
-      const response = await fetch(`${OLLAMA_URL}/api/tags`);
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (LITELLM_API_KEY) {
+        headers['Authorization'] = `Bearer ${LITELLM_API_KEY}`;
+      }
+      const response = await fetch(`${LITELLM_URL}/v1/models`, { headers });
       if (!response.ok) {
-        throw new Error(`Ollama returned ${response.status}`);
+        throw new Error(`LiteLLM returned ${response.status}`);
       }
       const data: any = await response.json();
-      return (data.models || []).map((m: any) => ({
-        name: m.name as string,
-        size: m.size as number,
-        parameterSize: m.details?.parameter_size,
+      return (data.data || []).map((m: any) => ({
+        name: m.id as string,
+        size: 0,
+        parameterSize: undefined,
       }));
     } catch (error: any) {
       if (
@@ -68,7 +73,7 @@ export class AiService {
         error.message?.includes('ENOTFOUND') ||
         error.message?.includes('fetch failed')
       ) {
-        throw Object.assign(new Error('Cannot connect to Ollama. Is it running?'), {
+        throw Object.assign(new Error('Cannot connect to LiteLLM. Is it running?'), {
           statusCode: 503,
         });
       }
@@ -95,9 +100,9 @@ export class AiService {
     // 3. Build prompt
     const prompt = this.buildPrompt(preferences, filtered);
 
-    // 4. Call Ollama
-    const modelToUse = preferences.model || OLLAMA_MODEL;
-    const rawPlan = await this.callOllama(prompt, modelToUse);
+    // 4. Call LiteLLM
+    const modelToUse = preferences.model || LITELLM_MODEL;
+    const rawPlan = await this.callLLM(prompt, modelToUse);
 
     // 5. Map AI exercise names to real exercise IDs
     const { mappedDays, warnings } = this.mapExercisesToIds(rawPlan.days, exercises);
@@ -243,16 +248,21 @@ RULES:
     return { system, user };
   }
 
-  async callOllama(prompt: { system: string; user: string }, model?: string): Promise<AiRawWorkoutPlan> {
+  async callLLM(prompt: { system: string; user: string }, model?: string): Promise<AiRawWorkoutPlan> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 300_000);
 
     try {
-      const response = await fetch(`${OLLAMA_URL}/v1/chat/completions`, {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (LITELLM_API_KEY) {
+        headers['Authorization'] = `Bearer ${LITELLM_API_KEY}`;
+      }
+
+      const response = await fetch(`${LITELLM_URL}/v1/chat/completions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
-          model: model || OLLAMA_MODEL,
+          model: model || LITELLM_MODEL,
           messages: [
             { role: 'system', content: prompt.system },
             { role: 'user', content: prompt.user },
@@ -265,7 +275,7 @@ RULES:
 
       if (!response.ok) {
         const text = await response.text().catch(() => '');
-        throw new Error(`Ollama returned ${response.status}: ${text}`);
+        throw new Error(`LiteLLM returned ${response.status}: ${text}`);
       }
 
       const data: any = await response.json();
@@ -284,7 +294,7 @@ RULES:
       return parsed;
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        throw Object.assign(new Error('Ollama request timed out after 5 minutes'), {
+        throw Object.assign(new Error('LiteLLM request timed out after 5 minutes'), {
           statusCode: 504,
         });
       }
@@ -298,7 +308,7 @@ RULES:
         error.message?.includes('ENOTFOUND') ||
         error.message?.includes('fetch failed')
       ) {
-        throw Object.assign(new Error('Cannot connect to Ollama. Is it running?'), {
+        throw Object.assign(new Error('Cannot connect to LiteLLM. Is it running?'), {
           statusCode: 503,
         });
       }
