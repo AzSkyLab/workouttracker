@@ -210,7 +210,13 @@ RULES:
       if (error instanceof SyntaxError) {
         throw Object.assign(new Error('AI returned invalid JSON'), { statusCode: 502 });
       }
-      if (error.cause?.code === 'ECONNREFUSED' || error.message?.includes('ECONNREFUSED')) {
+      if (
+        error.cause?.code === 'ECONNREFUSED' ||
+        error.cause?.code === 'ENOTFOUND' ||
+        error.message?.includes('ECONNREFUSED') ||
+        error.message?.includes('ENOTFOUND') ||
+        error.message?.includes('fetch failed')
+      ) {
         throw Object.assign(new Error('Cannot connect to Ollama. Is it running?'), {
           statusCode: 503,
         });
