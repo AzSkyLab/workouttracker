@@ -229,14 +229,17 @@ Copy from `.env.example` in that directory.
 
 ```bash
 # From root - must use -f flag because Dockerfiles expect root context
-docker build -t govocm/workout-backend:latest -f ./packages/backend/Dockerfile .
-docker build -t govocm/workout-frontend:latest -f ./packages/frontend/Dockerfile .
+docker build -t registry.home.lab/csgit34/workout-backend:latest -f ./packages/backend/Dockerfile .
+docker build -t registry.home.lab/csgit34/workout-frontend:latest -f ./packages/frontend/Dockerfile .
 ```
 
 Note: The npm `docker:build` scripts have incorrect build context. Use the commands above instead.
 
 ### Infrastructure
 
+- **Git remote**: Forgejo at `git.home.lab` (primary), GitHub mirror (backup)
+- **CI/CD**: Forgejo Actions (`.forgejo/workflows/ci.yml`) builds and pushes images to Harbor on push to `master`
+- **Container registry**: Harbor at `registry.home.lab`, project `csgit34`
 - **Cluster**: k3s cluster managed via ArgoCD GitOps (homelab repo)
 - **Database**: External PostgreSQL at `10.0.30.10` (not in-cluster)
 - **Ingress**: Traefik with TLS via cert-manager (`home-lab-ca` ClusterIssuer)
@@ -255,24 +258,50 @@ Note: The npm `docker:build` scripts have incorrect build context. Use the comma
 
 ### Deploy with ArgoCD
 
-ArgoCD automatically syncs the `k8s/` directory from the `master` branch. The ArgoCD Application is defined in the [homelab repo](https://github.com/csGIT34/homelab) at `kubernetes/apps/workout-tracker/workout-tracker.yml`.
+ArgoCD automatically syncs the `k8s/` directory from the `master` branch via Forgejo (`https://git.home.lab/csGIT34/workouttracker.git`). The ArgoCD Application is defined in the homelab repo at `kubernetes/apps/workout-tracker/workout-tracker.yml`.
 
-To deploy code changes, just push to `master`. GitHub Actions automatically builds and pushes Docker images, then restarts the deployments. To deploy manually:
+**Automated deployment (normal flow):** Push to `master` on Forgejo. Forgejo Actions CI automatically builds Docker images, pushes them to Harbor (`registry.home.lab/csgit34/workout-backend` and `workout-frontend`), and ArgoCD syncs k8s manifest changes. After images are pushed, restart deployments to pull the new images:
 
 ```bash
-# 1. Build and push Docker images (from repo root)
-docker build -t govocm/workout-backend:latest -f ./packages/backend/Dockerfile .
-docker build -t govocm/workout-frontend:latest -f ./packages/frontend/Dockerfile .
-docker push govocm/workout-backend:latest
-docker push govocm/workout-frontend:latest
+kubectl rollout restart deployment/frontend deployment/backend -n workout-tracker
+```
+
+**Manual deployment (if CI is down):**
+
+```bash
+# 1. Build and push Docker images to Harbor (from repo root)
+docker build -t registry.home.lab/csgit34/workout-backend:latest -f ./packages/backend/Dockerfile .
+docker build -t registry.home.lab/csgit34/workout-frontend:latest -f ./packages/frontend/Dockerfile .
+docker push registry.home.lab/csgit34/workout-backend:latest
+docker push registry.home.lab/csgit34/workout-frontend:latest
 
 # 2. Restart deployments to pull new images
 kubectl rollout restart deployment/frontend deployment/backend -n workout-tracker
-
-# 3. Verify rollout completes
-kubectl rollout status deployment/frontend deployment/backend -n workout-tracker
-kubectl get pods -n workout-tracker
 ```
+
+### CI/CD Pipeline (Forgejo Actions)
+
+The CI workflow at `.forgejo/workflows/ci.yml` runs on push to `master` (skips `k8s/**` and `*.md` changes):
+
+1. Checks out code from Forgejo
+2. Installs Docker CLI in the job container
+3. Logs into Harbor using repo secrets (`HARBOR_USERNAME`, `HARBOR_PASSWORD`)
+4. Builds and pushes `workout-backend` and `workout-frontend` images to `registry.home.lab/csgit34/`
+
+**Important CI notes:**
+- Harbor credentials use `env:` vars in the workflow (not inline `${{ secrets.* }}`) because the Harbor robot username contains a `$` character that bash would interpret
+- Job containers use the DinD Docker socket for Docker operations
+- DNS resolves via external CoreDNS at `10.0.20.53`
+- Forgejo push-mirrors all commits to GitHub automatically (backup)
+
+### Git Remotes
+
+```
+origin   git@git.home.lab:csGIT34/workouttracker.git  (Forgejo, primary)
+github   git@github.com:csGIT34/workouttracker.git     (GitHub, backup mirror)
+```
+
+Always push to `origin` (Forgejo). GitHub is updated automatically via push-mirroring.
 
 ### Initial Database Setup
 
