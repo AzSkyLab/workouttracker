@@ -102,13 +102,22 @@ export default function TemplateManager() {
             Create reusable workout plans to use in your schedule
           </p>
         </div>
-        <button
-          onClick={() => navigate('/templates/new')}
-          className="btn btn-primary"
-          style={{ fontSize: '1rem', padding: '0.75rem 1.5rem' }}
-        >
-          + Create Template
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button
+            onClick={() => navigate('/ai-plan')}
+            className="btn btn-outline"
+            style={{ fontSize: '1rem', padding: '0.75rem 1.5rem' }}
+          >
+            AI Generate Plan
+          </button>
+          <button
+            onClick={() => navigate('/templates/new')}
+            className="btn btn-primary"
+            style={{ fontSize: '1rem', padding: '0.75rem 1.5rem' }}
+          >
+            + Create Template
+          </button>
+        </div>
       </div>
 
       {templates.length === 0 ? (
@@ -129,13 +138,22 @@ export default function TemplateManager() {
             Templates are reusable workout plans you can schedule throughout your week.
             Create your first template to get started!
           </p>
-          <button
-            onClick={() => navigate('/templates/new')}
-            className="btn btn-primary"
-            style={{ fontSize: '1rem', padding: '0.75rem 2rem' }}
-          >
-            Create Your First Template
-          </button>
+          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => navigate('/templates/new')}
+              className="btn btn-primary"
+              style={{ fontSize: '1rem', padding: '0.75rem 2rem' }}
+            >
+              Create Your First Template
+            </button>
+            <button
+              onClick={() => navigate('/ai-plan')}
+              className="btn btn-outline"
+              style={{ fontSize: '1rem', padding: '0.75rem 2rem' }}
+            >
+              AI Generate Plan
+            </button>
+          </div>
         </div>
       ) : (
         <div className="template-grid" style={{

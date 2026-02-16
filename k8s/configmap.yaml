@@ -9,3 +9,5 @@ data:
   JWT_ACCESS_EXPIRES_IN: "15m"
   JWT_REFRESH_EXPIRES_IN: "7d"
   FRONTEND_URL: "https://workout.home.lab"
+  OLLAMA_URL: "http://ollama.home.lab:11434"
+  OLLAMA_MODEL: "qwen2.5-coder:32b"

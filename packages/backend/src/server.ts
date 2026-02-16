@@ -13,6 +13,7 @@ import { scheduleRoutes } from './routes/schedule.routes.js';
 import { analyticsRoutes } from './routes/analytics.routes.js';
 import { metadataRoutes } from './routes/metadata.routes.js';
 import { userRoutes } from './routes/user.routes.js';
+import { aiRoutes } from './routes/ai.routes.js';
 import { prisma } from './lib/prisma.js';
 
 dotenv.config();
@@ -67,6 +68,7 @@ await fastify.register(templateRoutes, { prefix: '/api/v1/templates' });
 await fastify.register(scheduleRoutes, { prefix: '/api/v1/schedule' });
 await fastify.register(analyticsRoutes, { prefix: '/api/v1/analytics' });
 await fastify.register(metadataRoutes, { prefix: '/api/v1/admin' });
+await fastify.register(aiRoutes, { prefix: '/api/v1/ai' });
 
 // Error handler
 fastify.setErrorHandler((error, request, reply) => {

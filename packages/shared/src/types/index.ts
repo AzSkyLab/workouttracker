@@ -6,3 +6,4 @@ export * from './progression.types.js';
 export * from './template.types.js';
 export * from './schedule.types.js';
 export * from './analytics.types.js';
+export * from './ai.types.js';

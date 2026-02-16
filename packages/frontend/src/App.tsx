@@ -15,6 +15,7 @@ import AdminPanel from './pages/AdminPanel'
 import AdminExerciseForm from './pages/AdminExerciseForm'
 import Schedule from './pages/Schedule'
 import ProgressCharts from './pages/ProgressCharts'
+import AiPlanGenerator from './pages/AiPlanGenerator'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 
@@ -38,6 +39,7 @@ function App() {
                 <Route path="/templates" element={<TemplateManager />} />
                 <Route path="/templates/new" element={<TemplateForm />} />
                 <Route path="/templates/:id/edit" element={<TemplateForm />} />
+                <Route path="/ai-plan" element={<AiPlanGenerator />} />
                 <Route path="/exercises" element={<ExerciseManager />} />
                 <Route path="/exercises/new" element={<ExerciseForm />} />
                 <Route path="/exercises/:id/edit" element={<ExerciseForm />} />

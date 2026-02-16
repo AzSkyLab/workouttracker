@@ -163,4 +163,10 @@ export const adminAPI = {
   },
 };
 
+// AI Plan Generator API
+export const aiAPI = {
+  generatePlan: (data: any) =>
+    api.post('/api/v1/ai/generate-plan', data, { timeout: 130_000 }),
+};
+
 export default api;
