@@ -164,7 +164,7 @@ RULES:
 
   async callOllama(prompt: { system: string; user: string }): Promise<AiRawWorkoutPlan> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120_000);
+    const timeout = setTimeout(() => controller.abort(), 300_000);
 
     try {
       const response = await fetch(`${OLLAMA_URL}/v1/chat/completions`, {
@@ -203,7 +203,7 @@ RULES:
       return parsed;
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        throw Object.assign(new Error('Ollama request timed out after 120 seconds'), {
+        throw Object.assign(new Error('Ollama request timed out after 5 minutes'), {
           statusCode: 504,
         });
       }

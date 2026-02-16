@@ -327,7 +327,7 @@ export default function AiPlanGenerator() {
           Generating your workout plan...
         </h2>
         <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
-          This usually takes 15-30 seconds
+          This may take 1-3 minutes depending on your model
         </p>
         <button onClick={handleCancel} className="btn btn-outline">
           Cancel
