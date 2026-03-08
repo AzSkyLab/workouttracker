@@ -7,9 +7,10 @@ interface WorkoutExerciseCardProps {
   workoutExercise: WorkoutExercise;
   workoutId: string;
   isActive?: boolean;
+  onRestTimerStart?: (seconds: number) => void;
 }
 
-export default function WorkoutExerciseCard({ workoutExercise, workoutId, isActive = true }: WorkoutExerciseCardProps) {
+export default function WorkoutExerciseCard({ workoutExercise, workoutId, isActive = true, onRestTimerStart }: WorkoutExerciseCardProps) {
   const [expanded, setExpanded] = useState(isActive);
 
   useEffect(() => {
@@ -36,6 +37,7 @@ export default function WorkoutExerciseCard({ workoutExercise, workoutId, isActi
 
     try {
       await completeExercise(workoutId, workoutExercise.id);
+      onRestTimerStart?.(workoutExercise.restBetweenSets || 60);
       // Auto-collapse after marking complete
       setExpanded(false);
     } catch (error) {
@@ -120,7 +122,7 @@ export default function WorkoutExerciseCard({ workoutExercise, workoutId, isActi
             />
           </div>
 
-          <SetLogger workoutExercise={workoutExercise} />
+          <SetLogger workoutExercise={workoutExercise} onSetLogged={() => onRestTimerStart?.(workoutExercise.restBetweenSets || 60)} />
 
           {!workoutExercise.completed && (
             <button

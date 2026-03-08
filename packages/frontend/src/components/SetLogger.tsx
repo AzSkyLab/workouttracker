@@ -4,9 +4,10 @@ import { useWorkout } from '../contexts/WorkoutContext';
 
 interface SetLoggerProps {
   workoutExercise: WorkoutExercise;
+  onSetLogged?: () => void;
 }
 
-export default function SetLogger({ workoutExercise }: SetLoggerProps) {
+export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerProps) {
   const isCardio = workoutExercise.exercise?.type === ExerciseType.CARDIO;
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
 
@@ -80,6 +81,8 @@ export default function SetLogger({ workoutExercise }: SetLoggerProps) {
         setReps(String(workoutExercise.targetReps));
         setRpe(undefined);
       }
+      // Start rest timer
+      onSetLogged?.();
       // Reset notes after logging
       setNotes('');
       setShowNotes(false);

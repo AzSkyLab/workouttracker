@@ -5,7 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { Exercise, WorkoutExercise, ExerciseType, WorkoutStatus } from '@workout-tracker/shared';
-import Stopwatch from '../components/Stopwatch';
+import { useRestTimer } from '../hooks/useRestTimer';
+import RestTimerBar from '../components/RestTimerBar';
 import ExerciseSelector from '../components/ExerciseSelector';
 import WorkoutExerciseCard from '../components/WorkoutExerciseCard';
 import SaveAsTemplateModal from '../components/SaveAsTemplateModal';
@@ -19,6 +20,7 @@ export default function ActiveWorkout() {
   const { currentWorkout, getWorkout, completeWorkout, restartWorkout, deleteWorkout, saveWorkoutAsTemplate } = useWorkout();
   const { user } = useAuth();
   const isMobile = useIsMobile();
+  const restTimer = useRestTimer();
   const [loading, setLoading] = useState(true);
   const [showExerciseSelector, setShowExerciseSelector] = useState(false);
   const [showSaveAsTemplateModal, setShowSaveAsTemplateModal] = useState(false);
@@ -250,9 +252,9 @@ export default function ActiveWorkout() {
         </div>
       </div>
 
-      {isMobile && (
-        <div style={{ position: 'sticky', top: 0, zIndex: 100, backgroundColor: 'var(--background)', paddingBottom: '0.5rem' }}>
-          <Stopwatch />
+      {!isCompleted && (restTimer.isRunning || restTimer.isComplete) && (
+        <div style={{ position: isMobile ? 'sticky' : 'relative', top: 0, zIndex: 100, backgroundColor: 'var(--background)', paddingBottom: '0.5rem' }}>
+          <RestTimerBar timer={restTimer} />
         </div>
       )}
 
@@ -299,6 +301,7 @@ export default function ActiveWorkout() {
                       workoutExercise={workoutExercise}
                       workoutId={currentWorkout.id}
                       isActive={index === activeIndex}
+                      onRestTimerStart={restTimer.startTimer}
                     />
                   );
                 })}
@@ -341,13 +344,6 @@ export default function ActiveWorkout() {
 
         {!isMobile && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'sticky', top: '1rem', alignSelf: 'start' }}>
-            <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem' }}>
-                Rest Timer
-              </h2>
-              <Stopwatch />
-            </div>
-
             <div>
               <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem' }}>
                 Calories Burned

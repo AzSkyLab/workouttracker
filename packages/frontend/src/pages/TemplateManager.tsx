@@ -1,14 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { templateAPI } from '../services/api';
+import { templateAPI, workoutAPI } from '../services/api';
 import { WorkoutTemplate, ExerciseType } from '@workout-tracker/shared';
 import ConfirmModal from '../components/ConfirmModal';
+import ActiveWorkoutModal from '../components/ActiveWorkoutModal';
 
 export default function TemplateManager() {
   const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [templateToDelete, setTemplateToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [startingWorkout, setStartingWorkout] = useState(false);
+  const [activeWorkoutModalOpen, setActiveWorkoutModalOpen] = useState(false);
+  const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(null);
+  const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -48,6 +53,56 @@ export default function TemplateManager() {
   const handleDeleteCancel = () => {
     setDeleteModalOpen(false);
     setTemplateToDelete(null);
+  };
+
+  const handleStartWorkout = async (templateId: string) => {
+    setStartingWorkout(true);
+    try {
+      const activeResponse = await workoutAPI.getActive();
+      if (activeResponse.data) {
+        setActiveWorkoutId(activeResponse.data.id);
+        setPendingTemplateId(templateId);
+        setActiveWorkoutModalOpen(true);
+        return;
+      }
+      const response = await workoutAPI.createFromTemplate(templateId);
+      navigate(`/workout/${response.data.id}`);
+    } catch (error) {
+      console.error('Failed to start workout:', error);
+    } finally {
+      setStartingWorkout(false);
+    }
+  };
+
+  const handleResumeActiveWorkout = () => {
+    if (activeWorkoutId) {
+      navigate(`/workout/${activeWorkoutId}`);
+    }
+    setActiveWorkoutModalOpen(false);
+    setActiveWorkoutId(null);
+    setPendingTemplateId(null);
+  };
+
+  const handleCreateNewFromTemplate = async () => {
+    setActiveWorkoutModalOpen(false);
+    if (!pendingTemplateId) return;
+    setStartingWorkout(true);
+    try {
+      const response = await workoutAPI.createFromTemplate(pendingTemplateId);
+      navigate(`/workout/${response.data.id}`);
+    } catch (error) {
+      console.error('Failed to start workout:', error);
+    } finally {
+      setStartingWorkout(false);
+      setActiveWorkoutId(null);
+      setPendingTemplateId(null);
+    }
+  };
+
+  const handleCancelActiveWorkoutModal = () => {
+    setActiveWorkoutModalOpen(false);
+    setActiveWorkoutId(null);
+    setPendingTemplateId(null);
   };
 
   const getTemplateIcon = (template: WorkoutTemplate): string => {
@@ -250,6 +305,17 @@ export default function TemplateManager() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      handleStartWorkout(template.id);
+                    }}
+                    className="btn btn-primary"
+                    disabled={startingWorkout}
+                    style={{ flex: 1, fontSize: '0.875rem' }}
+                  >
+                    Start
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
                       navigate(`/templates/${template.id}/edit`);
                     }}
                     className="btn btn-outline"
@@ -300,6 +366,13 @@ export default function TemplateManager() {
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
         danger={true}
+      />
+
+      <ActiveWorkoutModal
+        isOpen={activeWorkoutModalOpen}
+        onResume={handleResumeActiveWorkout}
+        onCreateNew={handleCreateNewFromTemplate}
+        onCancel={handleCancelActiveWorkoutModal}
       />
     </div>
   );
