@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: registry.home.lab/csgit34/workout-backend:c03efa918f31a428e863e8cc3f15510463398c9e
+          image: registry.home.lab/csgit34/workout-backend:a342fa10e2130e2ac77b348a3f5ba7523cebbce4
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
