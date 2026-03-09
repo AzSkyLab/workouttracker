@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: registry.home.lab/csgit34/workout-frontend:12f17f82e49d4d719ed0fb72c32a9faf83cbd847
+          image: registry.home.lab/csgit34/workout-frontend:2141f669a8e557a6b6e585d10f0c4c377d8e1c7f
           imagePullPolicy: Always
           ports:
             - containerPort: 80
