@@ -7,70 +7,126 @@ interface SavedTimerState {
   totalSeconds: number;
 }
 
+// Generate a WAV blob containing a square-wave beep pattern.
+// HTML5 Audio elements claim the media session, which triggers audio ducking
+// on Android (lowers other apps' volume while playing).
+function createWavBlob(
+  tones: Array<{ freq: number; dur: number; vol: number }>
+): Blob {
+  const sampleRate = 44100;
+  const totalDuration = tones.reduce((sum, t) => sum + t.dur, 0);
+  const numSamples = Math.floor(sampleRate * totalDuration);
+  const buffer = new ArrayBuffer(44 + numSamples * 2);
+  const view = new DataView(buffer);
+
+  // WAV header
+  const writeStr = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  };
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + numSamples * 2, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, 'data');
+  view.setUint32(40, numSamples * 2, true);
+
+  // Generate samples for each tone segment
+  let sampleOffset = 0;
+  for (const tone of tones) {
+    const segmentSamples = Math.floor(sampleRate * tone.dur);
+    for (let i = 0; i < segmentSamples; i++) {
+      const t = i / sampleRate;
+      // Square wave: sign of sine
+      const raw = tone.freq > 0
+        ? (Math.sin(2 * Math.PI * tone.freq * t) >= 0 ? 1 : -1)
+        : 0;
+      // Fade in/out envelope to prevent clicks
+      const fadeIn = Math.min(1, t * 80);
+      const fadeOut = Math.min(1, (tone.dur - t) * 80);
+      const sample = raw * tone.vol * fadeIn * fadeOut;
+      view.setInt16(
+        44 + (sampleOffset + i) * 2,
+        Math.max(-32768, Math.min(32767, sample * 32767)),
+        true
+      );
+    }
+    sampleOffset += segmentSamples;
+  }
+
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
 export function useRestTimer() {
   const [deadline, setDeadline] = useState<number | null>(null);
   const [totalSeconds, setTotalSeconds] = useState(0);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
-  const audioCtxRef = useRef<AudioContext | null>(null);
+  const tickAudioRef = useRef<HTMLAudioElement | null>(null);
+  const doneAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUnlockedRef = useRef(false);
   const playedTicksRef = useRef<Set<number>>(new Set());
   const doneSoundPlayedRef = useRef(false);
   const clearTimeoutRef = useRef<number>();
 
-  // Audio helpers - use Web Audio API oscillators so they don't claim the
-  // media session and won't pause YouTube Music or other audio apps.
-  const ensureAudioContext = () => {
+  // Create audio elements on mount
+  useEffect(() => {
     try {
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      }
-      if (audioCtxRef.current.state === 'suspended') {
-        audioCtxRef.current.resume().catch(() => {});
-      }
+      // Tick: single loud beep
+      const tickBlob = createWavBlob([
+        { freq: 880, dur: 0.2, vol: 0.9 },
+      ]);
+      // Done: triple beep — two short + one higher longer
+      const doneBlob = createWavBlob([
+        { freq: 880, dur: 0.15, vol: 0.95 },
+        { freq: 0, dur: 0.1, vol: 0 },
+        { freq: 880, dur: 0.15, vol: 0.95 },
+        { freq: 0, dur: 0.1, vol: 0 },
+        { freq: 1100, dur: 0.25, vol: 1.0 },
+      ]);
+
+      tickAudioRef.current = new Audio(URL.createObjectURL(tickBlob));
+      doneAudioRef.current = new Audio(URL.createObjectURL(doneBlob));
+      tickAudioRef.current.load();
+      doneAudioRef.current.load();
     } catch {}
-  };
 
-  const playBeep = (frequency: number, duration: number, volume: number) => {
-    try {
-      const ctx = audioCtxRef.current;
-      if (!ctx) return;
+    return () => {
+      [tickAudioRef, doneAudioRef].forEach((ref) => {
+        if (ref.current) {
+          ref.current.pause();
+          URL.revokeObjectURL(ref.current.src);
+        }
+      });
+    };
+  }, []);
 
-      // Try to resume if suspended — may work if close to a user gesture
-      if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => {});
-        return; // Will play next tick if resume succeeds
-      }
-      if (ctx.state !== 'running') return;
-
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.frequency.value = frequency;
-      osc.type = 'square';
-
-      gain.gain.setValueAtTime(volume, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + duration);
-    } catch {}
-  };
-
-  const vibrate = () => {
-    try {
-      if (navigator.vibrate) {
-        navigator.vibrate([200, 100, 200]);
-      }
-    } catch {}
-  };
-
-  // Unlock AudioContext on first user interaction (required by iOS/mobile).
-  // This must happen during a direct user gesture — not after an async call.
+  // Unlock audio on first user interaction (required by iOS/mobile).
   useEffect(() => {
     const handleInteraction = () => {
-      ensureAudioContext();
+      if (audioUnlockedRef.current) return;
+      audioUnlockedRef.current = true;
+
+      [tickAudioRef, doneAudioRef].forEach((ref) => {
+        if (!ref.current) return;
+        ref.current.volume = 0.01;
+        ref.current.play().then(() => {
+          ref.current!.pause();
+          ref.current!.currentTime = 0;
+          ref.current!.volume = 1.0;
+        }).catch(() => {
+          if (ref.current) ref.current.volume = 1.0;
+        });
+      });
+
       document.removeEventListener('touchstart', handleInteraction);
       document.removeEventListener('click', handleInteraction);
     };
@@ -81,6 +137,22 @@ export function useRestTimer() {
       document.removeEventListener('click', handleInteraction);
     };
   }, []);
+
+  const playAudio = (ref: React.RefObject<HTMLAudioElement | null>) => {
+    try {
+      if (!ref.current) return;
+      ref.current.currentTime = 0;
+      ref.current.play().catch(() => {});
+    } catch {}
+  };
+
+  const vibrate = () => {
+    try {
+      if (navigator.vibrate) {
+        navigator.vibrate([200, 100, 200]);
+      }
+    } catch {}
+  };
 
   // Load persisted timer on mount
   useEffect(() => {
@@ -117,10 +189,7 @@ export function useRestTimer() {
         if (!doneSoundPlayedRef.current) {
           doneSoundPlayedRef.current = true;
           setIsComplete(true);
-          // Triple beep alert
-          playBeep(880, 0.2, 0.9);
-          setTimeout(() => playBeep(880, 0.2, 0.9), 300);
-          setTimeout(() => playBeep(1100, 0.35, 1.0), 600);
+          playAudio(doneAudioRef);
           vibrate();
           localStorage.removeItem(STORAGE_KEY);
           // Auto-dismiss after 3 seconds
@@ -135,7 +204,7 @@ export function useRestTimer() {
       // Tick sounds at 3, 2, 1 seconds
       if (remaining <= 3 && !playedTicksRef.current.has(remaining)) {
         playedTicksRef.current.add(remaining);
-        playBeep(660, 0.2, 0.7);
+        playAudio(tickAudioRef);
       }
     };
 
@@ -180,9 +249,6 @@ export function useRestTimer() {
     playedTicksRef.current.clear();
     doneSoundPlayedRef.current = false;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ deadline: newDeadline, totalSeconds: seconds }));
-
-    // Resume AudioContext during this user gesture (required by iOS)
-    ensureAudioContext();
   }, []);
 
   const cancelTimer = useCallback(() => {

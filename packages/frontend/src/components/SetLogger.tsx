@@ -81,8 +81,10 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
         setReps(String(workoutExercise.targetReps));
         setRpe(undefined);
       }
-      // Start rest timer
-      onSetLogged?.();
+      // Start rest timer (but not after the last set — no rest needed)
+      if (nextSetNumber < maxSets) {
+        onSetLogged?.();
+      }
       // Reset notes after logging
       setNotes('');
       setShowNotes(false);

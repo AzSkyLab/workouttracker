@@ -52,6 +52,7 @@ export default function ActiveWorkout() {
   const handleCompleteWorkout = async () => {
     if (!currentWorkout) return;
     setCompleteModalOpen(false);
+    restTimer.cancelTimer();
 
     try {
       // Store workout data before completing
