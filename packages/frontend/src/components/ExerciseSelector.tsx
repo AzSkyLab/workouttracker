@@ -9,6 +9,7 @@ interface ExerciseSelectorProps {
   onAddExercise?: (exercise: Exercise, data: {
     targetSets?: number;
     targetReps?: number;
+    restBetweenSets?: number;
     targetDurationMinutes?: number;
     targetDistanceMiles?: number;
   }) => void;
@@ -288,7 +289,11 @@ export default function ExerciseSelector({ workoutId, onClose, onAddExercise }: 
                       type="number"
                       className="input"
                       value={targetSets}
-                      onChange={(e) => setTargetSets(Number(e.target.value))}
+                      onChange={(e) => {
+                        const sets = Number(e.target.value);
+                        setTargetSets(sets);
+                        setRestBetweenSets(sets >= 3 ? 180 : sets === 2 ? 120 : 60);
+                      }}
                       min={1}
                       max={10}
                     />

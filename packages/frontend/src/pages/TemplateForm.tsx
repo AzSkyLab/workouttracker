@@ -67,9 +67,22 @@ export default function TemplateForm() {
     }
   };
 
+  const handleRestPeriodChange = async (templateExerciseId: string, restSeconds: number) => {
+    if (!id) return;
+    try {
+      const response = await templateAPI.updateExercise(id, templateExerciseId, { restBetweenSets: restSeconds });
+      setTemplateExercises(templateExercises.map((te) =>
+        te.id === templateExerciseId ? response.data : te
+      ));
+    } catch (error) {
+      console.error('Failed to update rest period:', error);
+    }
+  };
+
   const handleAddExercise = async (exercise: Exercise, data: {
     targetSets?: number;
     targetReps?: number;
+    restBetweenSets?: number;
     targetDurationMinutes?: number;
     targetDistanceMiles?: number;
   }) => {
@@ -392,6 +405,39 @@ export default function TemplateForm() {
                         </button>
                       </div>
                     </div>
+
+                    {editingExerciseId !== te.id && te.exercise?.type !== ExerciseType.CARDIO && (
+                      <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                            Rest:
+                          </span>
+                          {[
+                            { label: '1min', value: 60 },
+                            { label: '2min', value: 120 },
+                            { label: '3min', value: 180 },
+                          ].map(({ label, value }) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => handleRestPeriodChange(te.id, value)}
+                              style={{
+                                padding: '0.2rem 0.5rem',
+                                fontSize: '0.75rem',
+                                border: '1px solid var(--border)',
+                                borderRadius: '0.25rem',
+                                cursor: 'pointer',
+                                backgroundColor: te.restBetweenSets === value ? 'var(--primary)' : 'var(--surface)',
+                                color: te.restBetweenSets === value ? 'white' : 'var(--text-secondary)',
+                                fontWeight: te.restBetweenSets === value ? 600 : 400,
+                              }}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {editingExerciseId === te.id && (
                       <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
