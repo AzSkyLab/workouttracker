@@ -38,6 +38,7 @@ export interface WorkoutExercise {
   previousReps?: number;
   completed: boolean;
   restBetweenSets?: number; // in seconds
+  restAfterExercise?: number; // in seconds — rest after completing all sets
   // Cardio-specific targets
   targetDurationMinutes?: number;
   targetDistanceMiles?: number;
@@ -81,6 +82,7 @@ export interface AddExerciseToWorkoutDto {
   targetSets: number;
   targetReps: number;
   restBetweenSets?: number; // in seconds
+  restAfterExercise?: number; // in seconds
 }
 
 export interface LogSetDto {

@@ -23,6 +23,7 @@ export default function TemplateForm() {
     targetSets?: number;
     targetReps?: number;
     restBetweenSets?: number;
+    restAfterExercise?: number;
     targetDurationMinutes?: number;
     targetDistanceMiles?: number;
   }>({});
@@ -67,10 +68,10 @@ export default function TemplateForm() {
     }
   };
 
-  const handleRestPeriodChange = async (templateExerciseId: string, restSeconds: number) => {
+  const handleRestPeriodChange = async (templateExerciseId: string, field: 'restBetweenSets' | 'restAfterExercise', restSeconds: number) => {
     if (!id) return;
     try {
-      const response = await templateAPI.updateExercise(id, templateExerciseId, { restBetweenSets: restSeconds });
+      const response = await templateAPI.updateExercise(id, templateExerciseId, { [field]: restSeconds });
       setTemplateExercises(templateExercises.map((te) =>
         te.id === templateExerciseId ? response.data : te
       ));
@@ -83,6 +84,7 @@ export default function TemplateForm() {
     targetSets?: number;
     targetReps?: number;
     restBetweenSets?: number;
+    restAfterExercise?: number;
     targetDurationMinutes?: number;
     targetDistanceMiles?: number;
   }) => {
@@ -121,6 +123,7 @@ export default function TemplateForm() {
       targetSets: te.targetSets ?? undefined,
       targetReps: te.targetReps ?? undefined,
       restBetweenSets: te.restBetweenSets ?? undefined,
+      restAfterExercise: te.restAfterExercise ?? undefined,
       targetDurationMinutes: te.targetDurationMinutes ?? undefined,
       targetDistanceMiles: te.targetDistanceMiles ?? undefined,
     });
@@ -329,7 +332,6 @@ export default function TemplateForm() {
                               ) : (
                                 <>
                                   {te.targetSets} sets × {te.targetReps} reps
-                                  {te.restBetweenSets ? ` • ${te.restBetweenSets >= 60 ? `${te.restBetweenSets / 60}min` : `${te.restBetweenSets}s`} rest` : ''}
                                 </>
                               )}
                             </div>
@@ -407,12 +409,13 @@ export default function TemplateForm() {
                     </div>
 
                     {editingExerciseId !== te.id && te.exercise?.type !== ExerciseType.CARDIO && (
-                      <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
+                      <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                            Rest:
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, minWidth: '75px' }}>
+                            Set rest:
                           </span>
                           {[
+                            { label: '30s', value: 30 },
                             { label: '1min', value: 60 },
                             { label: '2min', value: 120 },
                             { label: '3min', value: 180 },
@@ -420,7 +423,7 @@ export default function TemplateForm() {
                             <button
                               key={value}
                               type="button"
-                              onClick={() => handleRestPeriodChange(te.id, value)}
+                              onClick={() => handleRestPeriodChange(te.id, 'restBetweenSets', value)}
                               style={{
                                 padding: '0.2rem 0.5rem',
                                 fontSize: '0.75rem',
@@ -430,6 +433,35 @@ export default function TemplateForm() {
                                 backgroundColor: te.restBetweenSets === value ? 'var(--primary)' : 'var(--surface)',
                                 color: te.restBetweenSets === value ? 'white' : 'var(--text-secondary)',
                                 fontWeight: te.restBetweenSets === value ? 600 : 400,
+                              }}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, minWidth: '75px' }}>
+                            Exercise rest:
+                          </span>
+                          {[
+                            { label: '1min', value: 60 },
+                            { label: '2min', value: 120 },
+                            { label: '3min', value: 180 },
+                            { label: '5min', value: 300 },
+                          ].map(({ label, value }) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => handleRestPeriodChange(te.id, 'restAfterExercise', value)}
+                              style={{
+                                padding: '0.2rem 0.5rem',
+                                fontSize: '0.75rem',
+                                border: '1px solid var(--border)',
+                                borderRadius: '0.25rem',
+                                cursor: 'pointer',
+                                backgroundColor: te.restAfterExercise === value ? 'var(--success)' : 'var(--surface)',
+                                color: te.restAfterExercise === value ? 'white' : 'var(--text-secondary)',
+                                fontWeight: te.restAfterExercise === value ? 600 : 400,
                               }}
                             >
                               {label}
@@ -531,6 +563,36 @@ export default function TemplateForm() {
                                     cursor: 'pointer',
                                     backgroundColor: editValues.restBetweenSets === value ? 'var(--primary)' : 'var(--background)',
                                     color: editValues.restBetweenSets === value ? 'white' : 'var(--text)',
+                                  }}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div style={{ marginBottom: '0.75rem' }}>
+                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                              Rest After Exercise
+                            </label>
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                              {[
+                                { label: '1min', value: 60 },
+                                { label: '2min', value: 120 },
+                                { label: '3min', value: 180 },
+                                { label: '5min', value: 300 },
+                              ].map(({ label, value }) => (
+                                <button
+                                  key={value}
+                                  type="button"
+                                  onClick={() => setEditValues({ ...editValues, restAfterExercise: value })}
+                                  style={{
+                                    padding: '0.375rem 0.75rem',
+                                    fontSize: '0.8rem',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '0.375rem',
+                                    cursor: 'pointer',
+                                    backgroundColor: editValues.restAfterExercise === value ? 'var(--success)' : 'var(--background)',
+                                    color: editValues.restAfterExercise === value ? 'white' : 'var(--text)',
                                   }}
                                 >
                                   {label}

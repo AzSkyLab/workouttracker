@@ -7,9 +7,9 @@ interface SavedTimerState {
   totalSeconds: number;
 }
 
-// Generate a WAV blob containing a square-wave beep pattern.
-// HTML5 Audio elements claim the media session, which triggers audio ducking
-// on Android (lowers other apps' volume while playing).
+// Generate a WAV blob containing a waveform pattern.
+// HTML5 Audio elements claim the media session, which requests audio focus
+// on Android and pauses/mutes other apps while playing.
 function createWavBlob(
   tones: Array<{ freq: number; dur: number; vol: number }>
 ): Blob {
@@ -65,47 +65,77 @@ function createWavBlob(
   return new Blob([buffer], { type: 'audio/wav' });
 }
 
+// Build a single continuous ~5s countdown WAV.
+// Playing one long audio (instead of short individual beeps) makes Android
+// grant full AUDIOFOCUS_GAIN which pauses/mutes other audio apps.
+//
+// Timeline (audio seconds → timer remaining):
+//   t=0.0: start (near-silent background to establish audio focus)
+//   t=1.0: tick beep  (aligns with remaining=3)
+//   t=2.0: tick beep  (remaining=2)
+//   t=3.0: tick beep  (remaining=1)
+//   t=4.0: done triple beep (remaining=0)
+//   t=5.0: end
+//
+// Playback starts at audioOffset = 4.0 - actualSecondsRemaining
+function createCountdownWav(): Blob {
+  // Near-silent low-freq background keeps audio session active between beeps
+  const bg = (dur: number) => ({ freq: 50, dur, vol: 0.003 });
+  return createWavBlob([
+    // 0.0 – 1.0: background (claim audio focus, other apps pause)
+    bg(1.0),
+    // 1.0: tick beep
+    { freq: 880, dur: 0.15, vol: 0.95 },
+    // gap to 2.0
+    bg(0.85),
+    // 2.0: tick beep
+    { freq: 880, dur: 0.15, vol: 0.95 },
+    // gap to 3.0
+    bg(0.85),
+    // 3.0: tick beep
+    { freq: 880, dur: 0.15, vol: 0.95 },
+    // gap to 4.0
+    bg(0.85),
+    // 4.0: done triple beep
+    { freq: 880, dur: 0.12, vol: 1.0 },
+    bg(0.08),
+    { freq: 880, dur: 0.12, vol: 1.0 },
+    bg(0.08),
+    { freq: 1100, dur: 0.2, vol: 1.0 },
+    // trailing background to let audio focus settle
+    bg(0.4),
+  ]);
+}
+
 export function useRestTimer() {
   const [deadline, setDeadline] = useState<number | null>(null);
   const [totalSeconds, setTotalSeconds] = useState(0);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
-  const tickAudioRef = useRef<HTMLAudioElement | null>(null);
-  const doneAudioRef = useRef<HTMLAudioElement | null>(null);
+  const countdownAudioRef = useRef<HTMLAudioElement | null>(null);
+  const countdownBlobUrlRef = useRef<string | null>(null);
   const audioUnlockedRef = useRef(false);
-  const playedTicksRef = useRef<Set<number>>(new Set());
-  const doneSoundPlayedRef = useRef(false);
+  const countdownStartedRef = useRef(false);
+  const doneFiredRef = useRef(false);
   const clearTimeoutRef = useRef<number>();
 
-  // Create audio elements on mount
+  // Create countdown audio element on mount
   useEffect(() => {
     try {
-      // Tick: single loud beep
-      const tickBlob = createWavBlob([
-        { freq: 880, dur: 0.2, vol: 0.9 },
-      ]);
-      // Done: triple beep — two short + one higher longer
-      const doneBlob = createWavBlob([
-        { freq: 880, dur: 0.15, vol: 0.95 },
-        { freq: 0, dur: 0.1, vol: 0 },
-        { freq: 880, dur: 0.15, vol: 0.95 },
-        { freq: 0, dur: 0.1, vol: 0 },
-        { freq: 1100, dur: 0.25, vol: 1.0 },
-      ]);
-
-      tickAudioRef.current = new Audio(URL.createObjectURL(tickBlob));
-      doneAudioRef.current = new Audio(URL.createObjectURL(doneBlob));
-      tickAudioRef.current.load();
-      doneAudioRef.current.load();
+      const blob = createCountdownWav();
+      const url = URL.createObjectURL(blob);
+      countdownBlobUrlRef.current = url;
+      countdownAudioRef.current = new Audio(url);
+      countdownAudioRef.current.load();
     } catch {}
 
     return () => {
-      [tickAudioRef, doneAudioRef].forEach((ref) => {
-        if (ref.current) {
-          ref.current.pause();
-          URL.revokeObjectURL(ref.current.src);
-        }
-      });
+      if (countdownAudioRef.current) {
+        countdownAudioRef.current.pause();
+      }
+      if (countdownBlobUrlRef.current) {
+        URL.revokeObjectURL(countdownBlobUrlRef.current);
+      }
     };
   }, []);
 
@@ -115,17 +145,16 @@ export function useRestTimer() {
       if (audioUnlockedRef.current) return;
       audioUnlockedRef.current = true;
 
-      [tickAudioRef, doneAudioRef].forEach((ref) => {
-        if (!ref.current) return;
-        ref.current.volume = 0.01;
-        ref.current.play().then(() => {
-          ref.current!.pause();
-          ref.current!.currentTime = 0;
-          ref.current!.volume = 1.0;
+      if (countdownAudioRef.current) {
+        countdownAudioRef.current.volume = 0.01;
+        countdownAudioRef.current.play().then(() => {
+          countdownAudioRef.current!.pause();
+          countdownAudioRef.current!.currentTime = 0;
+          countdownAudioRef.current!.volume = 1.0;
         }).catch(() => {
-          if (ref.current) ref.current.volume = 1.0;
+          if (countdownAudioRef.current) countdownAudioRef.current.volume = 1.0;
         });
-      });
+      }
 
       document.removeEventListener('touchstart', handleInteraction);
       document.removeEventListener('click', handleInteraction);
@@ -137,14 +166,6 @@ export function useRestTimer() {
       document.removeEventListener('click', handleInteraction);
     };
   }, []);
-
-  const playAudio = (ref: React.RefObject<HTMLAudioElement | null>) => {
-    try {
-      if (!ref.current) return;
-      ref.current.currentTime = 0;
-      ref.current.play().catch(() => {});
-    } catch {}
-  };
 
   const vibrate = () => {
     try {
@@ -182,14 +203,23 @@ export function useRestTimer() {
     }
 
     const update = () => {
-      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      const actualRemaining = (deadline - Date.now()) / 1000;
+      const remaining = Math.max(0, Math.ceil(actualRemaining));
       setRemainingSeconds(remaining);
 
       if (remaining <= 0) {
-        if (!doneSoundPlayedRef.current) {
-          doneSoundPlayedRef.current = true;
+        if (!doneFiredRef.current) {
+          doneFiredRef.current = true;
           setIsComplete(true);
-          playAudio(doneAudioRef);
+
+          // If countdown audio hasn't started yet (very short timer),
+          // start it now at the done-beep offset
+          if (!countdownStartedRef.current && countdownAudioRef.current) {
+            countdownStartedRef.current = true;
+            countdownAudioRef.current.currentTime = 4.0;
+            countdownAudioRef.current.play().catch(() => {});
+          }
+
           vibrate();
           localStorage.removeItem(STORAGE_KEY);
           // Auto-dismiss after 3 seconds
@@ -201,10 +231,14 @@ export function useRestTimer() {
         return;
       }
 
-      // Tick sounds at 3, 2, 1 seconds
-      if (remaining <= 3 && !playedTicksRef.current.has(remaining)) {
-        playedTicksRef.current.add(remaining);
-        playAudio(tickAudioRef);
+      // Start the continuous countdown audio ~4.5s before the end.
+      // The audio is 5s long with beeps at t=1,2,3 and done at t=4.
+      // audioOffset = 4.0 - actualRemaining syncs beeps to the countdown.
+      if (actualRemaining <= 4.5 && !countdownStartedRef.current && countdownAudioRef.current) {
+        countdownStartedRef.current = true;
+        const offset = Math.max(0, 4.0 - actualRemaining);
+        countdownAudioRef.current.currentTime = offset;
+        countdownAudioRef.current.play().catch(() => {});
       }
     };
 
@@ -242,12 +276,18 @@ export function useRestTimer() {
       clearTimeout(clearTimeoutRef.current);
     }
 
+    // Stop any currently playing countdown audio
+    if (countdownAudioRef.current) {
+      countdownAudioRef.current.pause();
+      countdownAudioRef.current.currentTime = 0;
+    }
+
     const newDeadline = Date.now() + seconds * 1000;
     setDeadline(newDeadline);
     setTotalSeconds(seconds);
     setIsComplete(false);
-    playedTicksRef.current.clear();
-    doneSoundPlayedRef.current = false;
+    countdownStartedRef.current = false;
+    doneFiredRef.current = false;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ deadline: newDeadline, totalSeconds: seconds }));
   }, []);
 
@@ -255,6 +295,13 @@ export function useRestTimer() {
     if (clearTimeoutRef.current) {
       clearTimeout(clearTimeoutRef.current);
     }
+
+    // Stop any currently playing countdown audio
+    if (countdownAudioRef.current) {
+      countdownAudioRef.current.pause();
+      countdownAudioRef.current.currentTime = 0;
+    }
+
     setDeadline(null);
     setTotalSeconds(0);
     setRemainingSeconds(0);

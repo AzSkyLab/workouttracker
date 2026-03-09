@@ -37,7 +37,7 @@ export default function WorkoutExerciseCard({ workoutExercise, workoutId, isActi
 
     try {
       await completeExercise(workoutId, workoutExercise.id);
-      onRestTimerStart?.(workoutExercise.restBetweenSets || 60);
+      onRestTimerStart?.(workoutExercise.restAfterExercise || 180);
       // Auto-collapse after marking complete
       setExpanded(false);
     } catch (error) {

@@ -10,6 +10,7 @@ interface ExerciseSelectorProps {
     targetSets?: number;
     targetReps?: number;
     restBetweenSets?: number;
+    restAfterExercise?: number;
     targetDurationMinutes?: number;
     targetDistanceMiles?: number;
   }) => void;
@@ -98,9 +99,10 @@ export default function ExerciseSelector({ workoutId, onClose, onAddExercise }: 
     try {
       if (onAddExercise) {
         // Template mode - use custom callback
+        const restAfterDefault = targetSets >= 3 ? 180 : targetSets === 2 ? 120 : 60;
         const data = selectedExercise.type === ExerciseType.CARDIO
           ? { targetSets: 1, targetDurationMinutes, targetDistanceMiles }
-          : { targetSets, targetReps, restBetweenSets };
+          : { targetSets, targetReps, restBetweenSets, restAfterExercise: restAfterDefault };
         onAddExercise(selectedExercise, data);
       } else if (workoutId) {
         // Workout mode - use workout context

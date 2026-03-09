@@ -176,7 +176,8 @@ model WorkoutExercise {
   previousWeight  Float?
   previousReps    Float?
   completed       Boolean  @default(false)
-  restBetweenSets Int?     // in seconds (30, 120, 180, etc.)
+  restBetweenSets  Int?     // in seconds (30, 120, 180, etc.)
+  restAfterExercise Int?    // in seconds — rest after completing all sets
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -262,7 +263,8 @@ model TemplateExercise {
   targetSets Int?
   targetReps Int?
 
-  restBetweenSets Int?     // in seconds (30, 60, 90, 120, 180)
+  restBetweenSets   Int?     // in seconds (30, 60, 90, 120, 180)
+  restAfterExercise Int?     // in seconds — rest after completing all sets
 
   // For cardio exercises
   targetDurationMinutes Float?

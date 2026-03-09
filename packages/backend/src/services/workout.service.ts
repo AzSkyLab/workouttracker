@@ -122,6 +122,7 @@ export class WorkoutService {
         targetSets: data.targetSets,
         targetReps: data.targetReps,
         restBetweenSets: data.restBetweenSets,
+        restAfterExercise: data.restAfterExercise,
       },
       include: {
         exercise: true,
@@ -459,6 +460,7 @@ export class WorkoutService {
             previousWeight,
             previousReps,
             restBetweenSets: templateExercise.restBetweenSets,
+            restAfterExercise: templateExercise.restAfterExercise,
           },
         });
       } else {
@@ -471,6 +473,7 @@ export class WorkoutService {
             targetSets: templateExercise.targetSets || 1,
             targetReps: templateExercise.targetReps || 1,
             restBetweenSets: templateExercise.restBetweenSets,
+            restAfterExercise: templateExercise.restAfterExercise,
           },
         });
       }
@@ -548,6 +551,7 @@ export class WorkoutService {
           previousWeight,
           previousReps,
           restBetweenSets: templateExercise.restBetweenSets,
+          restAfterExercise: templateExercise.restAfterExercise,
         },
       });
     }
@@ -615,6 +619,7 @@ export class WorkoutService {
             targetSets: workoutExercise.targetSets,
             targetReps: workoutExercise.targetReps,
             restBetweenSets: workoutExercise.restBetweenSets,
+            restAfterExercise: workoutExercise.restAfterExercise,
           },
         });
       }
