@@ -15,17 +15,15 @@ export function useRestTimer() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const playedTicksRef = useRef<Set<number>>(new Set());
   const doneSoundPlayedRef = useRef(false);
+  const audioResumedForCountdownRef = useRef(false);
   const clearTimeoutRef = useRef<number>();
 
-  // Create/resume AudioContext. Uses Web Audio API oscillators which play
-  // ALONGSIDE other audio apps (no media session claim, no pausing music).
-  const getAudioContext = (): AudioContext | null => {
+  // Create AudioContext (must be called during user gesture on iOS).
+  // After creation, immediately suspend to avoid holding the audio session.
+  const ensureAudioContext = (): AudioContext | null => {
     try {
       if (!audioCtxRef.current) {
         audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      }
-      if (audioCtxRef.current.state === 'suspended') {
-        audioCtxRef.current.resume().catch(() => {});
       }
       return audioCtxRef.current;
     } catch {
@@ -33,11 +31,42 @@ export function useRestTimer() {
     }
   };
 
+  // Resume AudioContext for active sound playback.
+  // On iOS, this activates the audio session (may pause other apps).
+  const resumeAudioContext = async (): Promise<AudioContext | null> => {
+    const ctx = ensureAudioContext();
+    if (!ctx) return null;
+    try {
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+      return ctx;
+    } catch {
+      return null;
+    }
+  };
+
+  // Suspend AudioContext to release the iOS audio session.
+  // This allows other apps (YouTube Music, etc.) to resume playback.
+  const suspendAudioContext = () => {
+    const ctx = audioCtxRef.current;
+    if (ctx && ctx.state === 'running') {
+      ctx.suspend().catch(() => {});
+    }
+  };
+
   // Unlock AudioContext on first user interaction (required by iOS).
-  // AudioContext does NOT claim the media session, so this won't pause music.
+  // Create it, briefly resume (to satisfy the gesture requirement), then
+  // immediately suspend so we don't hold the audio session.
   useEffect(() => {
     const handleInteraction = () => {
-      getAudioContext();
+      const ctx = ensureAudioContext();
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().then(() => {
+          // Immediately suspend — we just needed iOS to "unlock" the context
+          ctx.suspend().catch(() => {});
+        }).catch(() => {});
+      }
       document.removeEventListener('touchstart', handleInteraction);
       document.removeEventListener('click', handleInteraction);
     };
@@ -50,10 +79,10 @@ export function useRestTimer() {
   }, []);
 
   // Play a loud square-wave beep via Web Audio API oscillator.
-  // Square waves are piercing and cut through background music.
+  // Caller must ensure AudioContext is running before calling this.
   const playBeep = (frequency: number, duration: number, volume: number) => {
     try {
-      const ctx = getAudioContext();
+      const ctx = audioCtxRef.current;
       if (!ctx || ctx.state !== 'running') return;
 
       const osc = ctx.createOscillator();
@@ -64,7 +93,6 @@ export function useRestTimer() {
       osc.frequency.value = frequency;
       osc.type = 'square';
 
-      // Start at full volume, hold, then quick fade out
       gain.gain.setValueAtTime(volume, ctx.currentTime);
       gain.gain.setValueAtTime(volume, ctx.currentTime + duration * 0.8);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
@@ -74,11 +102,12 @@ export function useRestTimer() {
     } catch {}
   };
 
-  // Triple beep pattern for timer completion
-  const playDoneSound = () => {
+  // Triple beep pattern for timer completion.
+  // Returns the total duration of the sound so caller knows when to suspend.
+  const playDoneSound = (): number => {
     try {
-      const ctx = getAudioContext();
-      if (!ctx || ctx.state !== 'running') return;
+      const ctx = audioCtxRef.current;
+      if (!ctx || ctx.state !== 'running') return 0;
 
       const scheduleBeep = (freq: number, startTime: number, dur: number, vol: number) => {
         const osc = ctx.createOscillator();
@@ -98,7 +127,10 @@ export function useRestTimer() {
       scheduleBeep(880, 0, 0.12, 1.0);
       scheduleBeep(880, 0.2, 0.12, 1.0);
       scheduleBeep(1100, 0.4, 0.25, 1.0);
-    } catch {}
+      return 0.65 + 0.1; // last beep ends at 0.65s + small buffer
+    } catch {
+      return 0;
+    }
   };
 
   const vibrate = () => {
@@ -133,6 +165,7 @@ export function useRestTimer() {
     if (deadline === null) {
       setRemainingSeconds(0);
       setIsComplete(false);
+      audioResumedForCountdownRef.current = false;
       return;
     }
 
@@ -144,9 +177,22 @@ export function useRestTimer() {
         if (!doneSoundPlayedRef.current) {
           doneSoundPlayedRef.current = true;
           setIsComplete(true);
-          playDoneSound();
+          const soundDuration = playDoneSound();
           vibrate();
           localStorage.removeItem(STORAGE_KEY);
+
+          // Suspend AudioContext after done sound finishes to release
+          // the iOS audio session (allows music to resume)
+          if (soundDuration > 0) {
+            setTimeout(() => {
+              suspendAudioContext();
+              audioResumedForCountdownRef.current = false;
+            }, soundDuration * 1000 + 200);
+          } else {
+            suspendAudioContext();
+            audioResumedForCountdownRef.current = false;
+          }
+
           // Auto-dismiss after 3 seconds
           clearTimeoutRef.current = window.setTimeout(() => {
             setDeadline(null);
@@ -154,6 +200,13 @@ export function useRestTimer() {
           }, 3000);
         }
         return;
+      }
+
+      // At ~5 seconds remaining, resume AudioContext for the countdown beeps.
+      // This is the ONLY moment we activate the audio session.
+      if (remaining <= 5 && !audioResumedForCountdownRef.current) {
+        audioResumedForCountdownRef.current = true;
+        resumeAudioContext(); // async but fire-and-forget; it'll be ready by 3s mark
       }
 
       // Tick sounds at 3, 2, 1 seconds
@@ -203,6 +256,7 @@ export function useRestTimer() {
     setIsComplete(false);
     playedTicksRef.current.clear();
     doneSoundPlayedRef.current = false;
+    audioResumedForCountdownRef.current = false;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ deadline: newDeadline, totalSeconds: seconds }));
   }, []);
 
@@ -214,6 +268,11 @@ export function useRestTimer() {
     setTotalSeconds(0);
     setRemainingSeconds(0);
     setIsComplete(false);
+    // Suspend audio context if it was resumed for countdown
+    if (audioResumedForCountdownRef.current) {
+      suspendAudioContext();
+      audioResumedForCountdownRef.current = false;
+    }
     localStorage.removeItem(STORAGE_KEY);
   }, []);
 
