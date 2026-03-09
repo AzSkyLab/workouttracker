@@ -8,9 +8,10 @@ interface WorkoutExerciseCardProps {
   workoutId: string;
   isActive?: boolean;
   onRestTimerStart?: (seconds: number) => void;
+  onRestTimerCancel?: () => void;
 }
 
-export default function WorkoutExerciseCard({ workoutExercise, workoutId, isActive = true, onRestTimerStart }: WorkoutExerciseCardProps) {
+export default function WorkoutExerciseCard({ workoutExercise, workoutId, isActive = true, onRestTimerStart, onRestTimerCancel }: WorkoutExerciseCardProps) {
   const [expanded, setExpanded] = useState(isActive);
 
   useEffect(() => {
@@ -122,7 +123,13 @@ export default function WorkoutExerciseCard({ workoutExercise, workoutId, isActi
             />
           </div>
 
-          <SetLogger workoutExercise={workoutExercise} onSetLogged={() => onRestTimerStart?.(workoutExercise.restBetweenSets || 60)} />
+          <SetLogger workoutExercise={workoutExercise} onSetLogged={(isLastSet) => {
+            if (isLastSet) {
+              onRestTimerCancel?.();
+            } else {
+              onRestTimerStart?.(workoutExercise.restBetweenSets || 60);
+            }
+          }} />
 
           {!workoutExercise.completed && (
             <button

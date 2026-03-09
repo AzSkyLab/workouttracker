@@ -303,6 +303,7 @@ export default function ActiveWorkout() {
                       workoutId={currentWorkout.id}
                       isActive={index === activeIndex}
                       onRestTimerStart={restTimer.startTimer}
+                      onRestTimerCancel={restTimer.cancelTimer}
                     />
                   );
                 })}

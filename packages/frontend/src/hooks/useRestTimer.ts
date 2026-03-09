@@ -125,13 +125,24 @@ export function useRestTimer() {
       const blob = createCountdownWav();
       const url = URL.createObjectURL(blob);
       countdownBlobUrlRef.current = url;
-      countdownAudioRef.current = new Audio(url);
-      countdownAudioRef.current.load();
+      const audio = new Audio(url);
+      countdownAudioRef.current = audio;
+      audio.load();
+
+      // When audio finishes, release the audio session so other apps resume.
+      // Clearing src forces the browser to relinquish audio focus.
+      audio.addEventListener('ended', () => {
+        audio.pause();
+        audio.removeAttribute('src');
+        audio.load();
+      });
     } catch {}
 
     return () => {
       if (countdownAudioRef.current) {
         countdownAudioRef.current.pause();
+        countdownAudioRef.current.removeAttribute('src');
+        countdownAudioRef.current.load();
       }
       if (countdownBlobUrlRef.current) {
         URL.revokeObjectURL(countdownBlobUrlRef.current);
@@ -166,6 +177,20 @@ export function useRestTimer() {
       document.removeEventListener('click', handleInteraction);
     };
   }, []);
+
+  // Restore the audio src (cleared on 'ended' to release audio focus)
+  // and seek to the given offset, then play.
+  const playCountdown = (offset: number) => {
+    const audio = countdownAudioRef.current;
+    const url = countdownBlobUrlRef.current;
+    if (!audio || !url) return;
+    if (!audio.src || audio.src === '') {
+      audio.src = url;
+      audio.load();
+    }
+    audio.currentTime = offset;
+    audio.play().catch(() => {});
+  };
 
   const vibrate = () => {
     try {
@@ -214,10 +239,9 @@ export function useRestTimer() {
 
           // If countdown audio hasn't started yet (very short timer),
           // start it now at the done-beep offset
-          if (!countdownStartedRef.current && countdownAudioRef.current) {
+          if (!countdownStartedRef.current) {
             countdownStartedRef.current = true;
-            countdownAudioRef.current.currentTime = 4.0;
-            countdownAudioRef.current.play().catch(() => {});
+            playCountdown(4.0);
           }
 
           vibrate();
@@ -234,11 +258,9 @@ export function useRestTimer() {
       // Start the continuous countdown audio ~4.5s before the end.
       // The audio is 5s long with beeps at t=1,2,3 and done at t=4.
       // audioOffset = 4.0 - actualRemaining syncs beeps to the countdown.
-      if (actualRemaining <= 4.5 && !countdownStartedRef.current && countdownAudioRef.current) {
+      if (actualRemaining <= 4.5 && !countdownStartedRef.current) {
         countdownStartedRef.current = true;
-        const offset = Math.max(0, 4.0 - actualRemaining);
-        countdownAudioRef.current.currentTime = offset;
-        countdownAudioRef.current.play().catch(() => {});
+        playCountdown(Math.max(0, 4.0 - actualRemaining));
       }
     };
 
@@ -276,10 +298,11 @@ export function useRestTimer() {
       clearTimeout(clearTimeoutRef.current);
     }
 
-    // Stop any currently playing countdown audio
+    // Stop any currently playing countdown audio and release audio focus
     if (countdownAudioRef.current) {
       countdownAudioRef.current.pause();
-      countdownAudioRef.current.currentTime = 0;
+      countdownAudioRef.current.removeAttribute('src');
+      countdownAudioRef.current.load();
     }
 
     const newDeadline = Date.now() + seconds * 1000;
@@ -296,10 +319,11 @@ export function useRestTimer() {
       clearTimeout(clearTimeoutRef.current);
     }
 
-    // Stop any currently playing countdown audio
+    // Stop any currently playing countdown audio and release audio focus
     if (countdownAudioRef.current) {
       countdownAudioRef.current.pause();
-      countdownAudioRef.current.currentTime = 0;
+      countdownAudioRef.current.removeAttribute('src');
+      countdownAudioRef.current.load();
     }
 
     setDeadline(null);

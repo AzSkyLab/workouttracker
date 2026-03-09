@@ -4,7 +4,7 @@ import { useWorkout } from '../contexts/WorkoutContext';
 
 interface SetLoggerProps {
   workoutExercise: WorkoutExercise;
-  onSetLogged?: () => void;
+  onSetLogged?: (isLastSet: boolean) => void;
 }
 
 export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerProps) {
@@ -81,10 +81,8 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
         setReps(String(workoutExercise.targetReps));
         setRpe(undefined);
       }
-      // Start rest timer (but not after the last set — no rest needed)
-      if (nextSetNumber < maxSets) {
-        onSetLogged?.();
-      }
+      // Tell parent whether this was the last set
+      onSetLogged?.(nextSetNumber >= maxSets);
       // Reset notes after logging
       setNotes('');
       setShowNotes(false);
