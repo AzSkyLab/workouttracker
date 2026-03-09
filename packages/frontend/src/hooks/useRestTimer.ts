@@ -7,166 +7,37 @@ interface SavedTimerState {
   totalSeconds: number;
 }
 
-// Generate a WAV blob containing a waveform pattern.
-// HTML5 Audio elements claim the media session, which requests audio focus
-// on Android and pauses/mutes other apps while playing.
-function createWavBlob(
-  tones: Array<{ freq: number; dur: number; vol: number }>
-): Blob {
-  const sampleRate = 44100;
-  const totalDuration = tones.reduce((sum, t) => sum + t.dur, 0);
-  const numSamples = Math.floor(sampleRate * totalDuration);
-  const buffer = new ArrayBuffer(44 + numSamples * 2);
-  const view = new DataView(buffer);
-
-  // WAV header
-  const writeStr = (offset: number, str: string) => {
-    for (let i = 0; i < str.length; i++) {
-      view.setUint8(offset + i, str.charCodeAt(i));
-    }
-  };
-  writeStr(0, 'RIFF');
-  view.setUint32(4, 36 + numSamples * 2, true);
-  writeStr(8, 'WAVE');
-  writeStr(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeStr(36, 'data');
-  view.setUint32(40, numSamples * 2, true);
-
-  // Generate samples for each tone segment
-  let sampleOffset = 0;
-  for (const tone of tones) {
-    const segmentSamples = Math.floor(sampleRate * tone.dur);
-    for (let i = 0; i < segmentSamples; i++) {
-      const t = i / sampleRate;
-      // Square wave: sign of sine
-      const raw = tone.freq > 0
-        ? (Math.sin(2 * Math.PI * tone.freq * t) >= 0 ? 1 : -1)
-        : 0;
-      // Fade in/out envelope to prevent clicks
-      const fadeIn = Math.min(1, t * 80);
-      const fadeOut = Math.min(1, (tone.dur - t) * 80);
-      const sample = raw * tone.vol * fadeIn * fadeOut;
-      view.setInt16(
-        44 + (sampleOffset + i) * 2,
-        Math.max(-32768, Math.min(32767, sample * 32767)),
-        true
-      );
-    }
-    sampleOffset += segmentSamples;
-  }
-
-  return new Blob([buffer], { type: 'audio/wav' });
-}
-
-// Build a single continuous ~5s countdown WAV.
-// Playing one long audio (instead of short individual beeps) makes Android
-// grant full AUDIOFOCUS_GAIN which pauses/mutes other audio apps.
-//
-// Timeline (audio seconds → timer remaining):
-//   t=0.0: start (near-silent background to establish audio focus)
-//   t=1.0: tick beep  (aligns with remaining=3)
-//   t=2.0: tick beep  (remaining=2)
-//   t=3.0: tick beep  (remaining=1)
-//   t=4.0: done triple beep (remaining=0)
-//   t=5.0: end
-//
-// Playback starts at audioOffset = 4.0 - actualSecondsRemaining
-function createCountdownWav(): Blob {
-  // Near-silent low-freq background keeps audio session active between beeps
-  const bg = (dur: number) => ({ freq: 50, dur, vol: 0.003 });
-  return createWavBlob([
-    // 0.0 – 1.0: background (claim audio focus, other apps pause)
-    bg(1.0),
-    // 1.0: tick beep
-    { freq: 880, dur: 0.15, vol: 0.95 },
-    // gap to 2.0
-    bg(0.85),
-    // 2.0: tick beep
-    { freq: 880, dur: 0.15, vol: 0.95 },
-    // gap to 3.0
-    bg(0.85),
-    // 3.0: tick beep
-    { freq: 880, dur: 0.15, vol: 0.95 },
-    // gap to 4.0
-    bg(0.85),
-    // 4.0: done triple beep
-    { freq: 880, dur: 0.12, vol: 1.0 },
-    bg(0.08),
-    { freq: 880, dur: 0.12, vol: 1.0 },
-    bg(0.08),
-    { freq: 1100, dur: 0.2, vol: 1.0 },
-    // trailing background to let audio focus settle
-    bg(0.4),
-  ]);
-}
-
 export function useRestTimer() {
   const [deadline, setDeadline] = useState<number | null>(null);
   const [totalSeconds, setTotalSeconds] = useState(0);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
-  const countdownAudioRef = useRef<HTMLAudioElement | null>(null);
-  const countdownBlobUrlRef = useRef<string | null>(null);
-  const audioUnlockedRef = useRef(false);
-  const countdownStartedRef = useRef(false);
-  const doneFiredRef = useRef(false);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const playedTicksRef = useRef<Set<number>>(new Set());
+  const doneSoundPlayedRef = useRef(false);
   const clearTimeoutRef = useRef<number>();
 
-  // Create countdown audio element on mount
-  useEffect(() => {
+  // Create/resume AudioContext. Uses Web Audio API oscillators which play
+  // ALONGSIDE other audio apps (no media session claim, no pausing music).
+  const getAudioContext = (): AudioContext | null => {
     try {
-      const blob = createCountdownWav();
-      const url = URL.createObjectURL(blob);
-      countdownBlobUrlRef.current = url;
-      const audio = new Audio(url);
-      countdownAudioRef.current = audio;
-      audio.load();
-
-      // When audio finishes, release the audio session so other apps resume.
-      // Clearing src forces the browser to relinquish audio focus.
-      audio.addEventListener('ended', () => {
-        audio.pause();
-        audio.removeAttribute('src');
-        audio.load();
-      });
-    } catch {}
-
-    return () => {
-      if (countdownAudioRef.current) {
-        countdownAudioRef.current.pause();
-        countdownAudioRef.current.removeAttribute('src');
-        countdownAudioRef.current.load();
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
-      if (countdownBlobUrlRef.current) {
-        URL.revokeObjectURL(countdownBlobUrlRef.current);
+      if (audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume().catch(() => {});
       }
-    };
-  }, []);
+      return audioCtxRef.current;
+    } catch {
+      return null;
+    }
+  };
 
-  // Unlock audio on first user interaction (required by iOS/mobile).
+  // Unlock AudioContext on first user interaction (required by iOS).
+  // AudioContext does NOT claim the media session, so this won't pause music.
   useEffect(() => {
     const handleInteraction = () => {
-      if (audioUnlockedRef.current) return;
-      audioUnlockedRef.current = true;
-
-      if (countdownAudioRef.current) {
-        countdownAudioRef.current.volume = 0.01;
-        countdownAudioRef.current.play().then(() => {
-          countdownAudioRef.current!.pause();
-          countdownAudioRef.current!.currentTime = 0;
-          countdownAudioRef.current!.volume = 1.0;
-        }).catch(() => {
-          if (countdownAudioRef.current) countdownAudioRef.current.volume = 1.0;
-        });
-      }
-
+      getAudioContext();
       document.removeEventListener('touchstart', handleInteraction);
       document.removeEventListener('click', handleInteraction);
     };
@@ -178,18 +49,56 @@ export function useRestTimer() {
     };
   }, []);
 
-  // Restore the audio src (cleared on 'ended' to release audio focus)
-  // and seek to the given offset, then play.
-  const playCountdown = (offset: number) => {
-    const audio = countdownAudioRef.current;
-    const url = countdownBlobUrlRef.current;
-    if (!audio || !url) return;
-    if (!audio.src || audio.src === '') {
-      audio.src = url;
-      audio.load();
-    }
-    audio.currentTime = offset;
-    audio.play().catch(() => {});
+  // Play a loud square-wave beep via Web Audio API oscillator.
+  // Square waves are piercing and cut through background music.
+  const playBeep = (frequency: number, duration: number, volume: number) => {
+    try {
+      const ctx = getAudioContext();
+      if (!ctx || ctx.state !== 'running') return;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.frequency.value = frequency;
+      osc.type = 'square';
+
+      // Start at full volume, hold, then quick fade out
+      gain.gain.setValueAtTime(volume, ctx.currentTime);
+      gain.gain.setValueAtTime(volume, ctx.currentTime + duration * 0.8);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + duration);
+    } catch {}
+  };
+
+  // Triple beep pattern for timer completion
+  const playDoneSound = () => {
+    try {
+      const ctx = getAudioContext();
+      if (!ctx || ctx.state !== 'running') return;
+
+      const scheduleBeep = (freq: number, startTime: number, dur: number, vol: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        osc.type = 'square';
+        gain.gain.setValueAtTime(vol, ctx.currentTime + startTime);
+        gain.gain.setValueAtTime(vol, ctx.currentTime + startTime + dur * 0.8);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startTime + dur);
+        osc.start(ctx.currentTime + startTime);
+        osc.stop(ctx.currentTime + startTime + dur);
+      };
+
+      // Two short beeps + one higher longer beep
+      scheduleBeep(880, 0, 0.12, 1.0);
+      scheduleBeep(880, 0.2, 0.12, 1.0);
+      scheduleBeep(1100, 0.4, 0.25, 1.0);
+    } catch {}
   };
 
   const vibrate = () => {
@@ -228,22 +137,14 @@ export function useRestTimer() {
     }
 
     const update = () => {
-      const actualRemaining = (deadline - Date.now()) / 1000;
-      const remaining = Math.max(0, Math.ceil(actualRemaining));
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
       setRemainingSeconds(remaining);
 
       if (remaining <= 0) {
-        if (!doneFiredRef.current) {
-          doneFiredRef.current = true;
+        if (!doneSoundPlayedRef.current) {
+          doneSoundPlayedRef.current = true;
           setIsComplete(true);
-
-          // If countdown audio hasn't started yet (very short timer),
-          // start it now at the done-beep offset
-          if (!countdownStartedRef.current) {
-            countdownStartedRef.current = true;
-            playCountdown(4.0);
-          }
-
+          playDoneSound();
           vibrate();
           localStorage.removeItem(STORAGE_KEY);
           // Auto-dismiss after 3 seconds
@@ -255,12 +156,10 @@ export function useRestTimer() {
         return;
       }
 
-      // Start the continuous countdown audio ~4.5s before the end.
-      // The audio is 5s long with beeps at t=1,2,3 and done at t=4.
-      // audioOffset = 4.0 - actualRemaining syncs beeps to the countdown.
-      if (actualRemaining <= 4.5 && !countdownStartedRef.current) {
-        countdownStartedRef.current = true;
-        playCountdown(Math.max(0, 4.0 - actualRemaining));
+      // Tick sounds at 3, 2, 1 seconds
+      if (remaining <= 3 && !playedTicksRef.current.has(remaining)) {
+        playedTicksRef.current.add(remaining);
+        playBeep(880, 0.15, 0.95);
       }
     };
 
@@ -298,19 +197,12 @@ export function useRestTimer() {
       clearTimeout(clearTimeoutRef.current);
     }
 
-    // Stop any currently playing countdown audio and release audio focus
-    if (countdownAudioRef.current) {
-      countdownAudioRef.current.pause();
-      countdownAudioRef.current.removeAttribute('src');
-      countdownAudioRef.current.load();
-    }
-
     const newDeadline = Date.now() + seconds * 1000;
     setDeadline(newDeadline);
     setTotalSeconds(seconds);
     setIsComplete(false);
-    countdownStartedRef.current = false;
-    doneFiredRef.current = false;
+    playedTicksRef.current.clear();
+    doneSoundPlayedRef.current = false;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ deadline: newDeadline, totalSeconds: seconds }));
   }, []);
 
@@ -318,14 +210,6 @@ export function useRestTimer() {
     if (clearTimeoutRef.current) {
       clearTimeout(clearTimeoutRef.current);
     }
-
-    // Stop any currently playing countdown audio and release audio focus
-    if (countdownAudioRef.current) {
-      countdownAudioRef.current.pause();
-      countdownAudioRef.current.removeAttribute('src');
-      countdownAudioRef.current.load();
-    }
-
     setDeadline(null);
     setTotalSeconds(0);
     setRemainingSeconds(0);
