@@ -48,7 +48,7 @@ export function useRestTimer() {
       gain.connect(ctx.destination);
 
       osc.frequency.value = frequency;
-      osc.type = 'sine';
+      osc.type = 'square';
 
       gain.gain.setValueAtTime(volume, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
@@ -117,9 +117,10 @@ export function useRestTimer() {
         if (!doneSoundPlayedRef.current) {
           doneSoundPlayedRef.current = true;
           setIsComplete(true);
-          // Double beep: low tone then high tone
-          playBeep(800, 0.25, 0.5);
-          setTimeout(() => playBeep(1000, 0.3, 0.5), 300);
+          // Triple beep alert
+          playBeep(880, 0.2, 0.9);
+          setTimeout(() => playBeep(880, 0.2, 0.9), 300);
+          setTimeout(() => playBeep(1100, 0.35, 1.0), 600);
           vibrate();
           localStorage.removeItem(STORAGE_KEY);
           // Auto-dismiss after 3 seconds
@@ -134,7 +135,7 @@ export function useRestTimer() {
       // Tick sounds at 3, 2, 1 seconds
       if (remaining <= 3 && !playedTicksRef.current.has(remaining)) {
         playedTicksRef.current.add(remaining);
-        playBeep(600, 0.15, 0.4);
+        playBeep(660, 0.2, 0.7);
       }
     };
 
