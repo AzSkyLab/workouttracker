@@ -42,3 +42,20 @@ jobs:
           docker build -t registry.home.lab/csgit34/workout-frontend:${{ github.sha }} -t registry.home.lab/csgit34/workout-frontend:latest -f packages/frontend/Dockerfile .
           docker push registry.home.lab/csgit34/workout-frontend:${{ github.sha }}
           docker push registry.home.lab/csgit34/workout-frontend:latest
+
+  update-manifests:
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update k8s image tags and push
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | head -c 7)
+          sed -i "s|image: registry.home.lab/csgit34/workout-backend:.*|image: registry.home.lab/csgit34/workout-backend:${{ github.sha }}|" k8s/backend-deployment.yaml
+          sed -i "s|image: registry.home.lab/csgit34/workout-frontend:.*|image: registry.home.lab/csgit34/workout-frontend:${{ github.sha }}|" k8s/frontend-deployment.yaml
+          git config user.name "Forgejo Actions"
+          git config user.email "actions@git.home.lab"
+          git add k8s/backend-deployment.yaml k8s/frontend-deployment.yaml
+          git diff --staged --quiet && echo "No manifest changes" && exit 0
+          git commit -m "chore: update k8s image tags to ${SHORT_SHA}"
+          git push
