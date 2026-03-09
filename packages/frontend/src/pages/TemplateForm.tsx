@@ -436,7 +436,11 @@ export default function TemplateForm() {
                                 type="number"
                                 className="input"
                                 value={editValues.targetSets ?? ''}
-                                onChange={(e) => setEditValues({ ...editValues, targetSets: e.target.value ? Number(e.target.value) : undefined })}
+                                onChange={(e) => {
+                                  const sets = e.target.value ? Number(e.target.value) : undefined;
+                                  const restDefault = sets !== undefined ? (sets >= 3 ? 180 : sets === 2 ? 120 : 60) : undefined;
+                                  setEditValues({ ...editValues, targetSets: sets, restBetweenSets: restDefault });
+                                }}
                                 min={1}
                                 max={10}
                                 style={{ padding: '0.5rem' }}

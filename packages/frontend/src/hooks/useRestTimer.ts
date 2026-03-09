@@ -33,7 +33,14 @@ export function useRestTimer() {
   const playBeep = (frequency: number, duration: number, volume: number) => {
     try {
       const ctx = audioCtxRef.current;
-      if (!ctx || ctx.state !== 'running') return;
+      if (!ctx) return;
+
+      // Try to resume if suspended — may work if close to a user gesture
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+        return; // Will play next tick if resume succeeds
+      }
+      if (ctx.state !== 'running') return;
 
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -58,6 +65,22 @@ export function useRestTimer() {
       }
     } catch {}
   };
+
+  // Unlock AudioContext on first user interaction (required by iOS/mobile).
+  // This must happen during a direct user gesture — not after an async call.
+  useEffect(() => {
+    const handleInteraction = () => {
+      ensureAudioContext();
+      document.removeEventListener('touchstart', handleInteraction);
+      document.removeEventListener('click', handleInteraction);
+    };
+    document.addEventListener('touchstart', handleInteraction, { passive: true });
+    document.addEventListener('click', handleInteraction);
+    return () => {
+      document.removeEventListener('touchstart', handleInteraction);
+      document.removeEventListener('click', handleInteraction);
+    };
+  }, []);
 
   // Load persisted timer on mount
   useEffect(() => {
@@ -94,7 +117,9 @@ export function useRestTimer() {
         if (!doneSoundPlayedRef.current) {
           doneSoundPlayedRef.current = true;
           setIsComplete(true);
-          playBeep(900, 0.3, 0.25);
+          // Double beep: low tone then high tone
+          playBeep(800, 0.25, 0.5);
+          setTimeout(() => playBeep(1000, 0.3, 0.5), 300);
           vibrate();
           localStorage.removeItem(STORAGE_KEY);
           // Auto-dismiss after 3 seconds
@@ -109,7 +134,7 @@ export function useRestTimer() {
       // Tick sounds at 3, 2, 1 seconds
       if (remaining <= 3 && !playedTicksRef.current.has(remaining)) {
         playedTicksRef.current.add(remaining);
-        playBeep(600, 0.1, 0.15);
+        playBeep(600, 0.15, 0.4);
       }
     };
 
