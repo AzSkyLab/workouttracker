@@ -1,44 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
 
-// Generate a WAV blob containing a sine wave beep
-function createBeepBlob(frequency: number, duration: number, volume: number): Blob {
-  const sampleRate = 44100;
+// Generate a beep as an AudioBuffer (routes through system output including Bluetooth)
+function createBeepBuffer(ctx: AudioContext, frequency: number, duration: number, volume: number): AudioBuffer {
+  const sampleRate = ctx.sampleRate;
   const numSamples = Math.floor(sampleRate * duration);
-  const buffer = new ArrayBuffer(44 + numSamples * 2);
-  const view = new DataView(buffer);
+  const buffer = ctx.createBuffer(1, numSamples, sampleRate);
+  const data = buffer.getChannelData(0);
 
-  const writeStr = (offset: number, str: string) => {
-    for (let i = 0; i < str.length; i++) {
-      view.setUint8(offset + i, str.charCodeAt(i));
-    }
-  };
-
-  // WAV header
-  writeStr(0, 'RIFF');
-  view.setUint32(4, 36 + numSamples * 2, true);
-  writeStr(8, 'WAVE');
-  writeStr(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // PCM
-  view.setUint16(22, 1, true); // mono
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeStr(36, 'data');
-  view.setUint32(40, numSamples * 2, true);
-
-  // Generate sine wave with fade in/out
   for (let i = 0; i < numSamples; i++) {
     const t = i / sampleRate;
     const fadeIn = Math.min(1, t * 50);
     const fadeOut = Math.min(1, (duration - t) * 50);
     const envelope = fadeIn * fadeOut;
-    const sample = Math.sin(2 * Math.PI * frequency * t) * volume * envelope;
-    view.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, sample * 32767)), true);
+    data[i] = Math.sin(2 * Math.PI * frequency * t) * volume * envelope;
   }
 
-  return new Blob([buffer], { type: 'audio/wav' });
+  return buffer;
 }
 
 export interface StopwatchState {
@@ -52,37 +29,54 @@ export function useStopwatch() {
   const [isRunning, setIsRunning] = useState(false);
   const [targetTime, setTargetTime] = useState<number | null>(null);
   const intervalRef = useRef<number>();
-  const tickAudioRef = useRef<HTMLAudioElement | null>(null);
-  const doneAudioRef = useRef<HTMLAudioElement | null>(null);
-  const audioUnlockedRef = useRef(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const tickBufferRef = useRef<AudioBuffer | null>(null);
+  const doneBufferRef = useRef<AudioBuffer | null>(null);
+  const keepAliveRef = useRef<{ osc: OscillatorNode; gain: GainNode } | null>(null);
 
-  // Create audio elements on mount
-  useEffect(() => {
-    try {
-      const tickBlob = createBeepBlob(600, 0.15, 0.8);
-      const doneBlob = createBeepBlob(900, 0.4, 1.0);
+  // Initialize AudioContext and buffers (must be called during user gesture for iOS)
+  const ensureAudioContext = () => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContext();
+      tickBufferRef.current = createBeepBuffer(audioContextRef.current, 600, 0.25, 0.8);
+      doneBufferRef.current = createBeepBuffer(audioContextRef.current, 900, 0.6, 1.0);
+    }
+    return audioContextRef.current;
+  };
 
-      const tickAudio = new Audio(URL.createObjectURL(tickBlob));
-      const doneAudio = new Audio(URL.createObjectURL(doneBlob));
+  // Near-inaudible oscillator to keep Bluetooth A2DP codec from sleeping
+  const startKeepAlive = () => {
+    const ctx = audioContextRef.current;
+    if (!ctx || keepAliveRef.current) return;
 
-      // Preload
-      tickAudio.load();
-      doneAudio.load();
-
-      tickAudioRef.current = tickAudio;
-      doneAudioRef.current = doneAudio;
-    } catch (e) {
-      // Audio not available
+    if (ctx.state === 'suspended') {
+      ctx.resume();
     }
 
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = 200;
+    gain.gain.value = 0.001; // ~-60dB, keeps codec active but inaudible
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    keepAliveRef.current = { osc, gain };
+  };
+
+  const stopKeepAlive = () => {
+    if (!keepAliveRef.current) return;
+    try { keepAliveRef.current.osc.stop(); } catch { /* already stopped */ }
+    keepAliveRef.current.osc.disconnect();
+    keepAliveRef.current.gain.disconnect();
+    keepAliveRef.current = null;
+  };
+
+  // Clean up on unmount
+  useEffect(() => {
     return () => {
-      if (tickAudioRef.current) {
-        tickAudioRef.current.pause();
-        URL.revokeObjectURL(tickAudioRef.current.src);
-      }
-      if (doneAudioRef.current) {
-        doneAudioRef.current.pause();
-        URL.revokeObjectURL(doneAudioRef.current.src);
+      stopKeepAlive();
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
       }
     };
   }, []);
@@ -135,48 +129,47 @@ export function useStopwatch() {
     }
   }, [time, targetTime, isRunning]);
 
+  // Start Bluetooth keepalive ~5s before beeps to warm up A2DP codec
+  useEffect(() => {
+    if (isRunning && targetTime !== null && time <= 5 && time > 0) {
+      startKeepAlive();
+    }
+  }, [time, isRunning, targetTime]);
+
   // Reactive sound playback when countdown reaches 3, 2, 1, 0
   useEffect(() => {
     if (!isRunning || targetTime === null) return;
 
     if (time === 3 || time === 2 || time === 1) {
-      replayAudio(tickAudioRef.current);
+      playBuffer(tickBufferRef.current, false);
     } else if (time === 0) {
-      replayAudio(doneAudioRef.current);
+      playBuffer(doneBufferRef.current, true);
     }
   }, [time, isRunning, targetTime]);
 
-  // Replay an audio element from the beginning
-  const replayAudio = (audio: HTMLAudioElement | null) => {
-    if (!audio) return;
+  // Play an AudioBuffer through the AudioContext
+  const playBuffer = (buffer: AudioBuffer | null, isFinalBeep: boolean) => {
+    const ctx = audioContextRef.current;
+    if (!buffer || !ctx) return;
     try {
-      audio.currentTime = 0;
-      audio.play().catch(() => {});
-    } catch (e) {
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start();
+
+      // After final beep: stop keepalive and suspend to avoid pausing music on iOS
+      if (isFinalBeep) {
+        source.onended = () => {
+          stopKeepAlive();
+          ctx.suspend();
+        };
+      }
+    } catch {
       // Playback failed
     }
-  };
-
-  // Unlock audio elements during a user gesture (required by iOS)
-  const unlockAudio = () => {
-    if (audioUnlockedRef.current) return;
-    audioUnlockedRef.current = true;
-
-    // Play and immediately pause to unlock on iOS
-    const unlock = (audio: HTMLAudioElement | null) => {
-      if (!audio) return;
-      audio.volume = 0.01;
-      audio.play().then(() => {
-        audio.pause();
-        audio.currentTime = 0;
-        audio.volume = 1.0;
-      }).catch(() => {
-        audio.volume = 1.0;
-      });
-    };
-
-    unlock(tickAudioRef.current);
-    unlock(doneAudioRef.current);
   };
 
   const start = () => setIsRunning(true);
@@ -186,14 +179,18 @@ export function useStopwatch() {
   };
 
   const reset = () => {
+    stopKeepAlive();
     setTime(0);
     setIsRunning(false);
     setTargetTime(null);
   };
 
   const startWithPreset = (seconds: number) => {
-    // Unlock audio during this user gesture (tap/click)
-    unlockAudio();
+    // Create AudioContext during user gesture (required by iOS/Safari)
+    const ctx = ensureAudioContext();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
 
     setTime(seconds);
     setTargetTime(seconds);
