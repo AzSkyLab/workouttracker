@@ -13,7 +13,7 @@ on:
 
 jobs:
   changes:
-    runs-on: ubuntu-latest
+    runs-on: homelab-runners
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
@@ -35,7 +35,7 @@ jobs:
   build-backend:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: homelab-runners
     permissions:
       contents: read
       packages: write
@@ -60,7 +60,7 @@ jobs:
   build-frontend:
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: homelab-runners
     permissions:
       contents: read
       packages: write
@@ -85,7 +85,7 @@ jobs:
   update-k8s-tags:
     needs: [build-backend, build-frontend]
     if: always() && (needs.build-backend.result == 'success' || needs.build-frontend.result == 'success')
-    runs-on: ubuntu-latest
+    runs-on: homelab-runners
     permissions:
       contents: write
     steps:
