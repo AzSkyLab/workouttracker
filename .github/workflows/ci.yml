@@ -8,12 +8,9 @@ on:
 
 jobs:
   build-backend:
-    runs-on: ubuntu-latest
+    runs-on: homelab-runners
     steps:
       - uses: actions/checkout@v4
-      - name: Install Docker CLI
-        run: |
-          apt-get update && apt-get install -y docker.io
       - name: Login to Harbor
         env:
           HARBOR_USER: ${{ secrets.HARBOR_USERNAME }}
@@ -26,12 +23,9 @@ jobs:
           docker push registry.home.lab/csgit34/workout-backend:latest
 
   build-frontend:
-    runs-on: ubuntu-latest
+    runs-on: homelab-runners
     steps:
       - uses: actions/checkout@v4
-      - name: Install Docker CLI
-        run: |
-          apt-get update && apt-get install -y docker.io
       - name: Login to Harbor
         env:
           HARBOR_USER: ${{ secrets.HARBOR_USERNAME }}
@@ -45,7 +39,7 @@ jobs:
 
   update-manifests:
     needs: [build-backend, build-frontend]
-    runs-on: ubuntu-latest
+    runs-on: homelab-runners
     steps:
       - uses: actions/checkout@v4
       - name: Update k8s image tags and push
@@ -53,8 +47,8 @@ jobs:
           SHORT_SHA=$(echo "${{ github.sha }}" | head -c 7)
           sed -i "s|image: registry.home.lab/csgit34/workout-backend:.*|image: registry.home.lab/csgit34/workout-backend:${{ github.sha }}|" k8s/backend-deployment.yaml
           sed -i "s|image: registry.home.lab/csgit34/workout-frontend:.*|image: registry.home.lab/csgit34/workout-frontend:${{ github.sha }}|" k8s/frontend-deployment.yaml
-          git config user.name "Forgejo Actions"
-          git config user.email "actions@git.home.lab"
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
           git add k8s/backend-deployment.yaml k8s/frontend-deployment.yaml
           git diff --staged --quiet && echo "No manifest changes" && exit 0
           git commit -m "chore: update k8s image tags to ${SHORT_SHA}"
