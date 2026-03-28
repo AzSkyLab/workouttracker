@@ -53,7 +53,9 @@ jobs:
           context: .
           file: ./packages/backend/Dockerfile
           push: true
-          tags: ghcr.io/azskylab/workout-backend:latest
+          tags: |
+            ghcr.io/azskylab/workout-backend:${{ github.sha }}
+            ghcr.io/azskylab/workout-backend:latest
 
   build-frontend:
     needs: changes
@@ -76,4 +78,37 @@ jobs:
           context: .
           file: ./packages/frontend/Dockerfile
           push: true
-          tags: ghcr.io/azskylab/workout-frontend:latest
+          tags: |
+            ghcr.io/azskylab/workout-frontend:${{ github.sha }}
+            ghcr.io/azskylab/workout-frontend:latest
+
+  update-k8s-tags:
+    needs: [build-backend, build-frontend]
+    if: always() && (needs.build-backend.result == 'success' || needs.build-frontend.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - name: Update image tags in k8s manifests
+        run: |
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          if [ "${{ needs.build-backend.result }}" == "success" ]; then
+            sed -i "s|ghcr.io/azskylab/workout-backend:[a-zA-Z0-9._-]*|ghcr.io/azskylab/workout-backend:${SHORT_SHA}|" k8s/backend-deployment.yaml
+          fi
+          if [ "${{ needs.build-frontend.result }}" == "success" ]; then
+            sed -i "s|ghcr.io/azskylab/workout-frontend:[a-zA-Z0-9._-]*|ghcr.io/azskylab/workout-frontend:${SHORT_SHA}|" k8s/frontend-deployment.yaml
+          fi
+
+      - name: Commit and push updated tags
+        run: |
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add k8s/
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: update k8s image tags to ${SHORT_SHA}"
+          git push

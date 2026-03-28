@@ -157,11 +157,13 @@ WorkoutContext manages current workout state and provides methods to add exercis
 Located in `packages/backend/src/services/progression.service.ts`:
 
 1. Analyzes last 3 completed workouts for specific exercise
-2. Calculates completion rate (sets completed / sets attempted)
-3. Recommendations:
-   - **Increase Weight** (+5 lbs): 100% completion rate with target reps met
-   - **More Reps**: 80%+ completion rate
-   - **Maintain**: <80% completion rate
+2. Rep range is 8–12. Averages are calculated from completed sets only (failed sets don't penalize)
+3. Recommendations (using RPE when available, falling back to completion rate):
+   - **Increase Weight** (+5 lbs, drop to 8 reps): Avg reps hit 12-rep ceiling, or all sets/reps completed with low RPE
+   - **More Reps** (up to 12): Completed all sets but RPE was moderate, or most reps completed
+   - **Maintain**: High RPE, or significantly missed target reps
+4. Dumbbell override: for dumbbells under 50 lbs, prefers adding reps before weight (unless at 12-rep ceiling)
+5. RPE cap: won't suggest weight increase if any set hit RPE 10 (unless at rep ceiling)
 
 Progression stored in `ExerciseProgression` table with unique constraint on (userId, exerciseId).
 
@@ -254,17 +256,15 @@ Copy from `.env.example` in that directory.
 
 ```bash
 # From root - must use -f flag because Dockerfiles expect root context
-docker build -t registry.home.lab/csgit34/workout-backend:latest -f ./packages/backend/Dockerfile .
-docker build -t registry.home.lab/csgit34/workout-frontend:latest -f ./packages/frontend/Dockerfile .
+docker build -t ghcr.io/azskylab/workout-backend:latest -f ./packages/backend/Dockerfile .
+docker build -t ghcr.io/azskylab/workout-frontend:latest -f ./packages/frontend/Dockerfile .
 ```
-
-Note: The npm `docker:build` scripts have incorrect build context. Use the commands above instead.
 
 ### Infrastructure
 
-- **Git remote**: Forgejo at `git.home.lab` (primary), GitHub mirror (backup)
-- **CI/CD**: Forgejo Actions (`.forgejo/workflows/ci.yml`) builds and pushes images to Harbor on push to `master`
-- **Container registry**: Harbor at `registry.home.lab`, project `csgit34`
+- **Git remote**: GitHub at `github.com` (primary)
+- **CI/CD**: GitHub Actions (`.github/workflows/docker.yml`) builds, pushes images to GHCR, and updates k8s image tags on push to `master`
+- **Container registry**: GitHub Container Registry (`ghcr.io/azskylab/`)
 - **Cluster**: k3s cluster managed via ArgoCD GitOps (homelab repo)
 - **Database**: External PostgreSQL at `10.0.30.10` (not in-cluster)
 - **Ingress**: Traefik with TLS via cert-manager (`home-lab-ca` ClusterIssuer)
@@ -283,50 +283,46 @@ Note: The npm `docker:build` scripts have incorrect build context. Use the comma
 
 ### Deploy with ArgoCD
 
-ArgoCD automatically syncs the `k8s/` directory from the `master` branch via Forgejo (`https://git.home.lab/csGIT34/workouttracker.git`). The ArgoCD Application is defined in the homelab repo at `kubernetes/apps/workout-tracker/workout-tracker.yml`.
+ArgoCD automatically syncs the `k8s/` directory from the `master` branch. The ArgoCD Application is defined in the homelab repo at `kubernetes/apps/workout-tracker/workout-tracker.yml`.
 
-**Automated deployment (normal flow):** Push to `master` on Forgejo. Forgejo Actions CI automatically builds Docker images, pushes them to Harbor (`registry.home.lab/csgit34/workout-backend` and `workout-frontend`), and ArgoCD syncs k8s manifest changes. After images are pushed, restart deployments to pull the new images:
-
-```bash
-kubectl rollout restart deployment/frontend deployment/backend -n workout-tracker
-```
+**Automated deployment (normal flow):** Push to `master`. GitHub Actions CI builds Docker images, pushes them to GHCR with a commit SHA tag, then commits the updated image tag back to the k8s manifests. ArgoCD detects the manifest change and rolls out automatically. No manual `kubectl` commands needed.
 
 **Manual deployment (if CI is down):**
 
 ```bash
-# 1. Build and push Docker images to Harbor (from repo root)
-docker build -t registry.home.lab/csgit34/workout-backend:latest -f ./packages/backend/Dockerfile .
-docker build -t registry.home.lab/csgit34/workout-frontend:latest -f ./packages/frontend/Dockerfile .
-docker push registry.home.lab/csgit34/workout-backend:latest
-docker push registry.home.lab/csgit34/workout-frontend:latest
+# 1. Build and push Docker images to GHCR (from repo root)
+SHORT_SHA=$(git rev-parse --short HEAD)
+docker build -t ghcr.io/azskylab/workout-backend:${SHORT_SHA} -f ./packages/backend/Dockerfile .
+docker build -t ghcr.io/azskylab/workout-frontend:${SHORT_SHA} -f ./packages/frontend/Dockerfile .
+docker push ghcr.io/azskylab/workout-backend:${SHORT_SHA}
+docker push ghcr.io/azskylab/workout-frontend:${SHORT_SHA}
 
-# 2. Restart deployments to pull new images
-kubectl rollout restart deployment/frontend deployment/backend -n workout-tracker
+# 2. Update k8s manifests with new tag and push (ArgoCD will sync)
+sed -i "s|ghcr.io/azskylab/workout-backend:[a-zA-Z0-9._-]*|ghcr.io/azskylab/workout-backend:${SHORT_SHA}|" k8s/backend-deployment.yaml
+sed -i "s|ghcr.io/azskylab/workout-frontend:[a-zA-Z0-9._-]*|ghcr.io/azskylab/workout-frontend:${SHORT_SHA}|" k8s/frontend-deployment.yaml
+git add k8s/ && git commit -m "chore: update k8s image tags to ${SHORT_SHA}" && git push
 ```
 
-### CI/CD Pipeline (Forgejo Actions)
+### CI/CD Pipeline (GitHub Actions)
 
-The CI workflow at `.forgejo/workflows/ci.yml` runs on push to `master` (skips `k8s/**` and `*.md` changes):
+The CI workflow at `.github/workflows/docker.yml` runs on push to `master` when `packages/`, `package-lock.json`, or the workflow itself changes:
 
-1. Checks out code from Forgejo
-2. Installs Docker CLI in the job container
-3. Logs into Harbor using repo secrets (`HARBOR_USERNAME`, `HARBOR_PASSWORD`)
-4. Builds and pushes `workout-backend` and `workout-frontend` images to `registry.home.lab/csgit34/`
+1. Detects which packages changed (backend, frontend, or both) via `dorny/paths-filter`
+2. Builds and pushes Docker images to GHCR with both `:<commit-sha>` and `:latest` tags
+3. Commits updated image tags in `k8s/` manifests back to `master`
+4. ArgoCD detects the k8s manifest change and syncs automatically
 
 **Important CI notes:**
-- Harbor credentials use `env:` vars in the workflow (not inline `${{ secrets.* }}`) because the Harbor robot username contains a `$` character that bash would interpret
-- Job containers use the DinD Docker socket for Docker operations
-- DNS resolves via external CoreDNS at `10.0.20.53`
-- Forgejo push-mirrors all commits to GitHub automatically (backup)
+- The `update-k8s-tags` job only runs if at least one build succeeded
+- Uses short SHA (7 chars) for k8s manifest tags, full SHA for GHCR tags
+- The bot commit only touches `k8s/` which is not in the workflow's path trigger, so no infinite loop
+- Bot commits via `GITHUB_TOKEN` don't trigger workflows (GitHub default behavior)
 
 ### Git Remotes
 
 ```
-origin   git@git.home.lab:csGIT34/workouttracker.git  (Forgejo, primary)
-github   git@github.com:csGIT34/workouttracker.git     (GitHub, backup mirror)
+origin   git@github.com:AzSkyLab/workouttracker.git  (GitHub, primary)
 ```
-
-Always push to `origin` (Forgejo). GitHub is updated automatically via push-mirroring.
 
 ### Initial Database Setup
 
