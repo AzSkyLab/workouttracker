@@ -33,6 +33,7 @@ export function useStopwatch() {
   const tickBufferRef = useRef<AudioBuffer | null>(null);
   const doneBufferRef = useRef<AudioBuffer | null>(null);
   const keepAliveRef = useRef<{ osc: OscillatorNode; gain: GainNode } | null>(null);
+  const timerIdRef = useRef(0); // Tracks active timer to prevent stale onended suspends
 
   // Initialize AudioContext and buffers (must be called during user gesture for iOS)
   const ensureAudioContext = () => {
@@ -44,14 +45,20 @@ export function useStopwatch() {
     return audioContextRef.current;
   };
 
+  // Ensure AudioContext is running before playing audio
+  const ensureResumed = async () => {
+    const ctx = audioContextRef.current;
+    if (ctx && ctx.state === 'suspended') {
+      await ctx.resume();
+    }
+  };
+
   // Near-inaudible oscillator to keep Bluetooth A2DP codec from sleeping
-  const startKeepAlive = () => {
+  const startKeepAlive = async () => {
     const ctx = audioContextRef.current;
     if (!ctx || keepAliveRef.current) return;
 
-    if (ctx.state === 'suspended') {
-      ctx.resume();
-    }
+    await ensureResumed();
 
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -148,13 +155,11 @@ export function useStopwatch() {
   }, [time, isRunning, targetTime]);
 
   // Play an AudioBuffer through the AudioContext
-  const playBuffer = (buffer: AudioBuffer | null, isFinalBeep: boolean) => {
+  const playBuffer = async (buffer: AudioBuffer | null, isFinalBeep: boolean) => {
     const ctx = audioContextRef.current;
     if (!buffer || !ctx) return;
     try {
-      if (ctx.state === 'suspended') {
-        ctx.resume();
-      }
+      await ensureResumed();
       const source = ctx.createBufferSource();
       source.buffer = buffer;
       source.connect(ctx.destination);
@@ -162,9 +167,13 @@ export function useStopwatch() {
 
       // After final beep: stop keepalive and suspend to avoid pausing music on iOS
       if (isFinalBeep) {
+        const currentTimerId = timerIdRef.current;
         source.onended = () => {
-          stopKeepAlive();
-          ctx.suspend();
+          // Only suspend if no new timer has started since this beep
+          if (timerIdRef.current === currentTimerId) {
+            stopKeepAlive();
+            ctx.suspend();
+          }
         };
       }
     } catch {
@@ -186,6 +195,9 @@ export function useStopwatch() {
   };
 
   const startWithPreset = (seconds: number) => {
+    // Increment timer ID so previous timer's onended won't suspend our context
+    timerIdRef.current++;
+
     // Create AudioContext during user gesture (required by iOS/Safari)
     const ctx = ensureAudioContext();
     if (ctx.state === 'suspended') {

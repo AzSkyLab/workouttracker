@@ -36,26 +36,36 @@ export class ProgressionService {
       return null;
     }
 
-    // Calculate averages (filter for strength sets with weight/reps)
-    const avgWeight = allSets.reduce((sum, set) => sum + (set.weight ?? 0), 0) / allSets.length;
-    const avgReps = allSets.reduce((sum, set) => sum + (set.reps ?? 0), 0) / allSets.length;
+    // Separate completed sets from failed sets
+    // Failed sets still count as work done — the user pushed to failure, which is positive
+    const completedSets = allSets.filter(set => set.completed);
 
-    // Calculate average RPE (only from sets that have RPE logged)
+    // Use completed sets for avg calculations; failed sets count toward total volume
+    const setsForAvg = completedSets.length > 0 ? completedSets : allSets;
+    const avgWeight = setsForAvg.reduce((sum, set) => sum + (set.weight ?? 0), 0) / setsForAvg.length;
+    const avgReps = setsForAvg.reduce((sum, set) => sum + (set.reps ?? 0), 0) / setsForAvg.length;
+
+    // Calculate average RPE from all sets (failed sets likely have high RPE which is useful data)
     const setsWithRPE = allSets.filter(set => set.rpe !== null);
     const avgRPE = setsWithRPE.length > 0
       ? setsWithRPE.reduce((sum, set) => sum + (set.rpe || 0), 0) / setsWithRPE.length
       : null;
 
-    // Calculate completion rate
+    // Calculate completion rate based on completed sets only
+    // Failed sets count toward total sets attempted (they represent real effort)
     const targetReps = lastWorkout.targetReps;
     const targetSets = lastWorkout.targetSets;
     const completionRate = avgReps / targetReps;
-    const setsCompleted = allSets.length;
-    const setsCompletionRate = setsCompleted / targetSets;
+    const totalSetsAttempted = allSets.length;
+    const setsCompletionRate = totalSetsAttempted / targetSets;
 
     // Determine recommendation using RPE and completion data
     let recommendation: ProgressionRecommendation;
     let recommendationDetails: string;
+
+    // Rep range: 8-12. Once hitting 12 reps, increase weight.
+    const MAX_REPS = 12;
+    const atRepCeiling = avgReps >= MAX_REPS;
 
     // Calculate max RPE to detect sets where user struggled
     const maxRPE = setsWithRPE.length > 0
@@ -67,14 +77,16 @@ export class ProgressionService {
       // RPE Scale: 1-6 = Easy, 7-8 = Moderate, 9-10 = Very Hard
       if (completionRate >= 1.0 && setsCompletionRate >= 1.0) {
         // All sets and reps completed
-        if (avgRPE <= 7) {
-          // Easy to moderate - increase weight
+        if (atRepCeiling || avgRPE <= 7) {
+          // At rep ceiling or easy effort - increase weight
           recommendation = ProgressionRecommendation.INCREASE_WEIGHT;
-          recommendationDetails = `Completed all sets/reps with avg RPE ${avgRPE.toFixed(1)}. Increase weight by 5 lbs.`;
+          recommendationDetails = atRepCeiling
+            ? `Hit ${MAX_REPS} rep ceiling. Increase weight by 5 lbs and drop back to 8 reps.`
+            : `Completed all sets/reps with avg RPE ${avgRPE.toFixed(1)}. Increase weight by 5 lbs.`;
         } else if (avgRPE <= 8.5) {
-          // Challenging but doable - add reps first
+          // Challenging but doable - add reps (up to max)
           recommendation = ProgressionRecommendation.MORE_REPS;
-          recommendationDetails = `Completed all sets/reps but avg RPE was ${avgRPE.toFixed(1)}. Add 2 more reps before increasing weight.`;
+          recommendationDetails = `Completed all sets/reps but avg RPE was ${avgRPE.toFixed(1)}. Add reps (up to ${MAX_REPS}) before increasing weight.`;
         } else {
           // Very hard - maintain
           recommendation = ProgressionRecommendation.MAINTAIN;
@@ -84,7 +96,7 @@ export class ProgressionService {
         // Almost all reps completed
         if (avgRPE <= 7) {
           recommendation = ProgressionRecommendation.MORE_REPS;
-          recommendationDetails = `Slight miss on target reps but RPE was low (${avgRPE.toFixed(1)}). Try to hit all ${targetReps} reps next time.`;
+          recommendationDetails = `Slight miss on target reps but RPE was low (${avgRPE.toFixed(1)}). Try to hit all ${targetReps} reps next time (max ${MAX_REPS}).`;
         } else {
           recommendation = ProgressionRecommendation.MAINTAIN;
           recommendationDetails = `Missed some reps and RPE was ${avgRPE.toFixed(1)}. Maintain weight and focus on form.`;
@@ -96,21 +108,27 @@ export class ProgressionService {
       }
 
       // Cap recommendation based on max RPE — don't suggest increases when any set was near failure
-      if (maxRPE !== null && maxRPE >= 10 && recommendation !== ProgressionRecommendation.MAINTAIN) {
-        recommendation = ProgressionRecommendation.MAINTAIN;
-        recommendationDetails = `At least one set was max effort (RPE 10). Maintain current weight to build strength.`;
-      } else if (maxRPE !== null && maxRPE >= 9 && recommendation === ProgressionRecommendation.INCREASE_WEIGHT) {
-        recommendation = ProgressionRecommendation.MORE_REPS;
-        recommendationDetails = `Avg RPE was ${avgRPE.toFixed(1)} but peaked at RPE ${maxRPE}. Add reps before increasing weight.`;
+      // Exception: always increase weight at rep ceiling regardless of RPE
+      if (!atRepCeiling) {
+        if (maxRPE !== null && maxRPE >= 10 && recommendation !== ProgressionRecommendation.MAINTAIN) {
+          recommendation = ProgressionRecommendation.MAINTAIN;
+          recommendationDetails = `At least one set was max effort (RPE 10). Maintain current weight to build strength.`;
+        } else if (maxRPE !== null && maxRPE >= 9 && recommendation === ProgressionRecommendation.INCREASE_WEIGHT) {
+          recommendation = ProgressionRecommendation.MORE_REPS;
+          recommendationDetails = `Avg RPE was ${avgRPE.toFixed(1)} but peaked at RPE ${maxRPE}. Add reps (up to ${MAX_REPS}) before increasing weight.`;
+        }
       }
     } else {
       // No RPE data - fall back to completion rate only
-      if (completionRate >= 1.0 && setsCompletionRate >= 1.0) {
+      if (atRepCeiling && setsCompletionRate >= 1.0) {
+        recommendation = ProgressionRecommendation.INCREASE_WEIGHT;
+        recommendationDetails = `Hit ${MAX_REPS} rep ceiling. Increase weight by 5 lbs and drop back to 8 reps.`;
+      } else if (completionRate >= 1.0 && setsCompletionRate >= 1.0) {
         recommendation = ProgressionRecommendation.INCREASE_WEIGHT;
         recommendationDetails = `All sets and reps completed. Increase weight by 5 lbs. (Tip: Log RPE for better recommendations!)`;
       } else if (completionRate >= 0.85) {
         recommendation = ProgressionRecommendation.MORE_REPS;
-        recommendationDetails = `Most reps completed. Try to complete all ${targetReps} reps next time.`;
+        recommendationDetails = `Most reps completed. Try to complete all ${targetReps} reps next time (max ${MAX_REPS}).`;
       } else {
         recommendation = ProgressionRecommendation.MAINTAIN;
         recommendationDetails = `Struggled with current weight. Maintain current weight and reps.`;
@@ -118,16 +136,18 @@ export class ProgressionService {
     }
 
     // Dumbbell override: for dumbbell exercises under 50 lbs, prefer reps over weight
+    // Skip override if already at rep ceiling — must increase weight
     const categoryName = (lastWorkout.exercise as any).category?.name;
     if (
       categoryName === 'DUMBBELL' &&
       avgWeight < 50 &&
+      !atRepCeiling &&
       recommendation === ProgressionRecommendation.INCREASE_WEIGHT
     ) {
       if (avgReps < targetReps + 4) {
         const pct = Math.round((5 / avgWeight) * 100);
         recommendation = ProgressionRecommendation.MORE_REPS;
-        recommendationDetails = `Dumbbell under 50 lbs — add reps before weight. 5 lb jump is a ${pct}% increase.`;
+        recommendationDetails = `Dumbbell under 50 lbs — add reps (up to ${MAX_REPS}) before weight. 5 lb jump is a ${pct}% increase.`;
       }
       // If avgReps >= targetReps + 4, keep INCREASE_WEIGHT — enough rep capacity built
     }
