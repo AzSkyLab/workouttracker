@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: registry.home.lab/csgit34/workout-backend:4b762cd1a633a28e4d5c2162a7207e0af1a4c728
+          image: ghcr.io/azskylab/workout-backend:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3000

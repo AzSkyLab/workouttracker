@@ -53,7 +53,7 @@ jobs:
           context: .
           file: ./packages/backend/Dockerfile
           push: true
-          tags: ghcr.io/csgit34/workout-backend:latest
+          tags: ghcr.io/azskylab/workout-backend:latest
 
   build-frontend:
     needs: changes
@@ -76,4 +76,4 @@ jobs:
           context: .
           file: ./packages/frontend/Dockerfile
           push: true
-          tags: ghcr.io/csgit34/workout-frontend:latest
+          tags: ghcr.io/azskylab/workout-frontend:latest
