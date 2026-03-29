@@ -115,7 +115,8 @@ jobs:
       - name: Trigger ArgoCD sync
         run: |
           curl -sSf -k -X POST \
-            https://argocd-server.argocd.svc.cluster.local/api/webhook \
+            --resolve argocd.home.lab:443:10.0.20.80 \
+            https://argocd.home.lab/api/webhook \
             -H "Content-Type: application/json" \
             -d '{
               "ref": "refs/heads/master",
