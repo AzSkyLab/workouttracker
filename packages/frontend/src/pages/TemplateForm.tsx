@@ -426,7 +426,10 @@ export default function TemplateForm() {
                           </span>
                           {[
                             { label: '30s', value: 30 },
-                            { label: '1min', value: 60 },
+                            { label: '45s', value: 45 },
+                            { label: '60s', value: 60 },
+                            { label: '75s', value: 75 },
+                            { label: '90s', value: 90 },
                             { label: '2min', value: 120 },
                             { label: '3min', value: 180 },
                           ].map(({ label, value }) => (
@@ -454,7 +457,8 @@ export default function TemplateForm() {
                             Exercise rest:
                           </span>
                           {[
-                            { label: '1min', value: 60 },
+                            { label: '60s', value: 60 },
+                            { label: '90s', value: 90 },
                             { label: '2min', value: 120 },
                             { label: '3min', value: 180 },
                             { label: '5min', value: 300 },
