@@ -43,6 +43,9 @@ export default function Layout() {
           <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 0 : '2rem' }}>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--primary)' }}>
               Workout Tracker
+              <span style={{ fontSize: '0.625rem', fontWeight: 500, color: 'var(--text-secondary)', marginLeft: '0.5rem', verticalAlign: 'middle' }}>
+                v{__APP_VERSION__}
+              </span>
             </h1>
             {!isMobile && (
               <div style={{ display: 'flex', gap: '1.5rem' }}>
@@ -127,16 +130,6 @@ export default function Layout() {
           <Outlet />
         </div>
       </main>
-
-      <footer style={{
-        textAlign: 'center',
-        padding: '0.5rem',
-        fontSize: '0.75rem',
-        color: 'var(--text-secondary)',
-        opacity: 0.5,
-      }}>
-        v{__APP_VERSION__}
-      </footer>
 
       {/* User Profile Modal */}
       <UserProfileModal
