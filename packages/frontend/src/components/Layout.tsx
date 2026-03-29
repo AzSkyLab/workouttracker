@@ -41,11 +41,8 @@ export default function Layout() {
           alignItems: 'center',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 0 : '2rem' }}>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--primary)' }}>
-              Workout Tracker
-              <span style={{ fontSize: '0.625rem', fontWeight: 500, color: 'var(--text-secondary)', marginLeft: '0.5rem', verticalAlign: 'middle' }}>
-                v{__APP_VERSION__}
-              </span>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--primary)', whiteSpace: 'nowrap' }}>
+              Workout Tracker<sup style={{ fontSize: '0.5rem', fontWeight: 400, color: 'var(--text-secondary)', marginLeft: '0.25rem' }}>{__APP_VERSION__}</sup>
             </h1>
             {!isMobile && (
               <div style={{ display: 'flex', gap: '1.5rem' }}>
