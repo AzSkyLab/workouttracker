@@ -91,7 +91,7 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
     }
   };
 
-  const handleUpdateSet = async (setId: string, field: string, value: number) => {
+  const handleUpdateSet = async (setId: string, field: string, value: number | boolean) => {
     try {
       await updateSet(setId, { [field]: value });
     } catch (error) {
@@ -128,17 +128,23 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
                       <div style={{ fontWeight: 600, fontSize: '0.875rem', minWidth: '40px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                         {isCardio ? '✓' : `#${set.setNumber}`}
                         {!set.completed && !isCardio && (
-                          <span style={{
-                            fontSize: '0.625rem',
-                            fontWeight: 700,
-                            color: '#dc2626',
-                            backgroundColor: '#fef2f2',
-                            padding: '0.125rem 0.375rem',
-                            borderRadius: '0.25rem',
-                            textTransform: 'uppercase',
-                          }}>
-                            Failed
-                          </span>
+                          <button
+                            onClick={() => handleUpdateSet(set.id, 'completed', true)}
+                            title="Undo failed — mark as completed"
+                            style={{
+                              fontSize: '0.625rem',
+                              fontWeight: 700,
+                              color: '#dc2626',
+                              backgroundColor: '#fef2f2',
+                              padding: '0.125rem 0.375rem',
+                              borderRadius: '0.25rem',
+                              textTransform: 'uppercase',
+                              border: '1px solid transparent',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Failed ✕
+                          </button>
                         )}
                       </div>
 

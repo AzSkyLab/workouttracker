@@ -22,15 +22,15 @@ export default function WorkoutExerciseCard({ workoutExercise, workoutId, isActi
   const { completeExercise } = useWorkout();
 
   const isCardio = workoutExercise.exercise?.type === ExerciseType.CARDIO;
-  const completedSets = workoutExercise.sets.filter((s) => s.completed).length;
+  const loggedSets = workoutExercise.sets.length;
   const targetSets = isCardio ? 1 : workoutExercise.targetSets;
-  const progressPercent = (completedSets / targetSets) * 100;
+  const progressPercent = (loggedSets / targetSets) * 100;
 
   const handleComplete = async () => {
-    if (completedSets < targetSets) {
+    if (loggedSets < targetSets) {
       const message = isCardio
         ? 'Activity not logged yet. Mark as complete anyway?'
-        : `Only ${completedSets} of ${targetSets} sets completed. Mark as complete anyway?`;
+        : `Only ${loggedSets} of ${targetSets} sets logged. Mark as complete anyway?`;
       if (!confirm(message)) {
         return;
       }
@@ -70,13 +70,13 @@ export default function WorkoutExerciseCard({ workoutExercise, workoutId, isActi
           <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
             {isCardio ? (
               <>
-                {completedSets > 0 ? 'Activity logged' : 'Target: '}
+                {loggedSets > 0 ? 'Activity logged' : 'Target: '}
                 {workoutExercise.targetDurationMinutes && `${workoutExercise.targetDurationMinutes} min`}
                 {workoutExercise.targetDistanceMiles && ` • ${workoutExercise.targetDistanceMiles} mi`}
               </>
             ) : (
               <>
-                {completedSets} / {workoutExercise.targetSets} sets • {workoutExercise.targetReps} reps target
+                {loggedSets} / {workoutExercise.targetSets} sets • {workoutExercise.targetReps} reps target
                 {workoutExercise.previousWeight && (
                   <span style={{ marginLeft: '0.5rem', color: 'var(--text-secondary)' }}>
                     • Last: {Math.round(workoutExercise.previousWeight)} lbs x {Math.round(workoutExercise.previousReps || 0)}
