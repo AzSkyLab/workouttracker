@@ -39,6 +39,7 @@ export interface WorkoutExercise {
   completed: boolean;
   restBetweenSets?: number; // in seconds
   restAfterExercise?: number; // in seconds — rest after completing all sets
+  tempo?: string | null; // e.g. "3-1-2-0"
   // Cardio-specific targets
   targetDurationMinutes?: number;
   targetDistanceMiles?: number;

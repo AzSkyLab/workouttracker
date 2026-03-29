@@ -143,6 +143,7 @@ export class TemplateService {
         restAfterExercise: data.restAfterExercise,
         targetDurationMinutes: data.targetDurationMinutes,
         targetDistanceMiles: data.targetDistanceMiles,
+        tempo: data.tempo,
         notes: data.notes,
       },
       include: {
@@ -187,6 +188,7 @@ export class TemplateService {
         restAfterExercise: data.restAfterExercise,
         targetDurationMinutes: data.targetDurationMinutes,
         targetDistanceMiles: data.targetDistanceMiles,
+        tempo: data.tempo,
         notes: data.notes,
       },
       include: {

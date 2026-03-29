@@ -24,6 +24,7 @@ const addExerciseSchema = z.object({
   restAfterExercise: z.number().min(0).optional(),
   targetDurationMinutes: z.number().min(0).optional(),
   targetDistanceMiles: z.number().min(0).optional(),
+  tempo: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -34,6 +35,7 @@ const updateExerciseSchema = z.object({
   restAfterExercise: z.number().min(0).optional(),
   targetDurationMinutes: z.number().min(0).optional(),
   targetDistanceMiles: z.number().min(0).optional(),
+  tempo: z.string().optional(),
   notes: z.string().optional(),
 });
 

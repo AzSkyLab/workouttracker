@@ -461,6 +461,7 @@ export class WorkoutService {
             previousReps,
             restBetweenSets: templateExercise.restBetweenSets,
             restAfterExercise: templateExercise.restAfterExercise,
+            tempo: templateExercise.tempo,
           },
         });
       } else {
@@ -474,6 +475,7 @@ export class WorkoutService {
             targetReps: templateExercise.targetReps || 1,
             restBetweenSets: templateExercise.restBetweenSets,
             restAfterExercise: templateExercise.restAfterExercise,
+            tempo: templateExercise.tempo,
           },
         });
       }
@@ -552,6 +554,7 @@ export class WorkoutService {
           previousReps,
           restBetweenSets: templateExercise.restBetweenSets,
           restAfterExercise: templateExercise.restAfterExercise,
+          tempo: templateExercise.tempo,
         },
       });
     }
@@ -620,6 +623,7 @@ export class WorkoutService {
             targetReps: workoutExercise.targetReps,
             restBetweenSets: workoutExercise.restBetweenSets,
             restAfterExercise: workoutExercise.restAfterExercise,
+            tempo: workoutExercise.tempo,
           },
         });
       }

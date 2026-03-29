@@ -23,6 +23,7 @@ export interface TemplateExercise {
   restAfterExercise?: number | null;
   targetDurationMinutes?: number | null;
   targetDistanceMiles?: number | null;
+  tempo?: string | null;
   notes?: string | null;
   exercise?: Exercise;
   createdAt: Date;
@@ -50,6 +51,7 @@ export interface AddExerciseToTemplateDto {
   restAfterExercise?: number;
   targetDurationMinutes?: number;
   targetDistanceMiles?: number;
+  tempo?: string;
   notes?: string;
 }
 
@@ -60,6 +62,7 @@ export interface UpdateTemplateExerciseDto {
   restAfterExercise?: number;
   targetDurationMinutes?: number;
   targetDistanceMiles?: number;
+  tempo?: string;
   notes?: string;
 }
 

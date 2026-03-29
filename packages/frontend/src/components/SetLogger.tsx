@@ -338,9 +338,16 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
           backgroundColor: 'var(--background)',
           borderRadius: '0.375rem',
         }}>
-          <h4 style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.75rem' }}>
-            {isCardio ? 'Log Activity' : `Log Set #${nextSetNumber}`}
-          </h4>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <h4 style={{ fontSize: '0.875rem', fontWeight: '600' }}>
+              {isCardio ? 'Log Activity' : `Log Set #${nextSetNumber}`}
+            </h4>
+            {workoutExercise.tempo && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600 }}>
+                Tempo: {workoutExercise.tempo}
+              </span>
+            )}
+          </div>
 
           {isCardio ? (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>

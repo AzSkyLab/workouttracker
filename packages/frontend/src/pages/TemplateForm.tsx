@@ -26,6 +26,8 @@ export default function TemplateForm() {
     restAfterExercise?: number;
     targetDurationMinutes?: number;
     targetDistanceMiles?: number;
+    tempo?: string;
+    notes?: string;
   }>({});
 
   useEffect(() => {
@@ -126,6 +128,8 @@ export default function TemplateForm() {
       restAfterExercise: te.restAfterExercise ?? undefined,
       targetDurationMinutes: te.targetDurationMinutes ?? undefined,
       targetDistanceMiles: te.targetDistanceMiles ?? undefined,
+      tempo: te.tempo ?? undefined,
+      notes: te.notes ?? undefined,
     });
   };
 
@@ -332,8 +336,14 @@ export default function TemplateForm() {
                               ) : (
                                 <>
                                   {te.targetSets} sets × {te.targetReps} reps
+                                  {te.tempo && <span style={{ color: 'var(--primary)' }}> • {te.tempo}</span>}
                                 </>
                               )}
+                            </div>
+                          )}
+                          {te.notes && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                              {te.notes}
                             </div>
                           )}
                         </div>
@@ -599,6 +609,32 @@ export default function TemplateForm() {
                                 </button>
                               ))}
                             </div>
+                          </div>
+                          <div style={{ marginBottom: '0.75rem' }}>
+                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                              Tempo (e.g. 3-1-2-0)
+                            </label>
+                            <input
+                              type="text"
+                              className="input"
+                              value={editValues.tempo || ''}
+                              onChange={(e) => setEditValues({ ...editValues, tempo: e.target.value || undefined })}
+                              placeholder="eccentric-pause-concentric-pause"
+                              style={{ padding: '0.375rem', fontSize: '0.875rem', width: '100%' }}
+                            />
+                          </div>
+                          <div style={{ marginBottom: '0.75rem' }}>
+                            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                              Notes
+                            </label>
+                            <input
+                              type="text"
+                              className="input"
+                              value={editValues.notes || ''}
+                              onChange={(e) => setEditValues({ ...editValues, notes: e.target.value || undefined })}
+                              placeholder="Exercise notes..."
+                              style={{ padding: '0.375rem', fontSize: '0.875rem', width: '100%' }}
+                            />
                           </div>
                           </>
                         )}

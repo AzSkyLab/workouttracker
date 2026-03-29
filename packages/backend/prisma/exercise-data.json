@@ -2078,5 +2078,37 @@
     "videoUrl": null,
     "aliases": ["Chair Dips", "Tricep Bench Dips"],
     "instructions": "Sit on the edge of a bench with your hands gripping the edge beside your hips. Slide your butt off the bench with legs extended or bent. Lower your body by bending your elbows until your upper arms are parallel to the floor. Press back up to full arm extension."
+  },
+  {
+    "name": "Box Squat",
+    "description": "Squat variation where you sit back onto a box at the bottom position, reducing knee stress while building explosive hip and leg power.",
+    "muscleGroup": "LEGS",
+    "category": "BARBELL",
+    "type": "STRENGTH",
+    "metValue": null,
+    "difficulty": "INTERMEDIATE",
+    "force": "PUSH",
+    "mechanic": "COMPOUND",
+    "secondaryMuscles": ["glutes", "hamstrings", "core"],
+    "specificMuscle": "quadriceps",
+    "videoUrl": null,
+    "aliases": ["Barbell Box Squat", "Box Squat (barbell)"],
+    "instructions": "Set up a box or bench behind you at a height where your thighs are parallel to the floor when seated. With a barbell on your back, push your hips back and sit fully on the box. Pause briefly, then drive through your feet to stand up explosively. Keep your core braced throughout."
+  },
+  {
+    "name": "Band Pull-Apart",
+    "description": "Resistance band exercise targeting rear deltoids and upper back muscles for posture and shoulder health.",
+    "muscleGroup": "SHOULDERS",
+    "category": "BODYWEIGHT",
+    "type": "STRENGTH",
+    "metValue": null,
+    "difficulty": "BEGINNER",
+    "force": "PULL",
+    "mechanic": "ISOLATION",
+    "secondaryMuscles": ["rhomboids", "middle trapezius"],
+    "specificMuscle": "posterior deltoid",
+    "videoUrl": null,
+    "aliases": ["Resistance Band Pull-Apart", "Band Pull Apart"],
+    "instructions": "Hold a resistance band at shoulder height with arms extended in front of you. Pull the band apart by squeezing your shoulder blades together, bringing your hands out to the sides. Control the return to the starting position."
   }
 ]
