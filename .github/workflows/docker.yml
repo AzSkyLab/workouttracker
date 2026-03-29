@@ -95,12 +95,11 @@ jobs:
 
       - name: Update image tags in k8s manifests
         run: |
-          SHORT_SHA="${GITHUB_SHA:0:7}"
           if [ "${{ needs.build-backend.result }}" == "success" ]; then
-            sed -i "s|ghcr.io/azskylab/workout-backend:[a-zA-Z0-9._-]*|ghcr.io/azskylab/workout-backend:${SHORT_SHA}|" k8s/backend-deployment.yaml
+            sed -i "s|ghcr.io/azskylab/workout-backend:[a-zA-Z0-9._-]*|ghcr.io/azskylab/workout-backend:${GITHUB_SHA}|" k8s/backend-deployment.yaml
           fi
           if [ "${{ needs.build-frontend.result }}" == "success" ]; then
-            sed -i "s|ghcr.io/azskylab/workout-frontend:[a-zA-Z0-9._-]*|ghcr.io/azskylab/workout-frontend:${SHORT_SHA}|" k8s/frontend-deployment.yaml
+            sed -i "s|ghcr.io/azskylab/workout-frontend:[a-zA-Z0-9._-]*|ghcr.io/azskylab/workout-frontend:${GITHUB_SHA}|" k8s/frontend-deployment.yaml
           fi
 
       - name: Commit and push updated tags

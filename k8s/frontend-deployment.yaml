@@ -20,7 +20,7 @@ spec:
         - name: ghcr-pull-secret
       containers:
         - name: frontend
-          image: ghcr.io/azskylab/workout-frontend:0b88ae1
+          image: ghcr.io/azskylab/workout-frontend:0b88ae16f5a33e30b722a70fd34e394e22b53330
           imagePullPolicy: Always
           ports:
             - containerPort: 80
