@@ -319,7 +319,7 @@ export default function ExerciseSelector({ workoutId, onClose, onAddExercise }: 
                     Rest Between Sets
                   </label>
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {[30, 60, 90, 120, 180].map((seconds) => (
+                    {[30, 45, 60, 75, 90, 120, 180].map((seconds) => (
                       <button
                         key={seconds}
                         type="button"
@@ -333,7 +333,7 @@ export default function ExerciseSelector({ workoutId, onClose, onAddExercise }: 
                           border: '1px solid var(--border)',
                         }}
                       >
-                        {seconds < 60 ? `${seconds}s` : `${seconds / 60}min`}
+                        {seconds < 60 ? `${seconds}s` : seconds % 60 === 0 ? `${seconds / 60}min` : `${seconds}s`}
                       </button>
                     ))}
                   </div>

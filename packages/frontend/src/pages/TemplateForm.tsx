@@ -556,7 +556,9 @@ export default function TemplateForm() {
                             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                               {[
                                 { label: '30s', value: 30 },
+                                { label: '45s', value: 45 },
                                 { label: '60s', value: 60 },
+                                { label: '75s', value: 75 },
                                 { label: '90s', value: 90 },
                                 { label: '2min', value: 120 },
                                 { label: '3min', value: 180 },
@@ -586,7 +588,8 @@ export default function TemplateForm() {
                             </label>
                             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                               {[
-                                { label: '1min', value: 60 },
+                                { label: '60s', value: 60 },
+                                { label: '90s', value: 90 },
                                 { label: '2min', value: 120 },
                                 { label: '3min', value: 180 },
                                 { label: '5min', value: 300 },
