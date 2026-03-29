@@ -128,6 +128,16 @@ export default function Layout() {
         </div>
       </main>
 
+      <footer style={{
+        textAlign: 'center',
+        padding: '0.5rem',
+        fontSize: '0.75rem',
+        color: 'var(--text-secondary)',
+        opacity: 0.5,
+      }}>
+        v{__APP_VERSION__}
+      </footer>
+
       {/* User Profile Modal */}
       <UserProfileModal
         isOpen={profileModalOpen}
