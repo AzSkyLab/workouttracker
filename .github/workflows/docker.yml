@@ -118,9 +118,13 @@ jobs:
             --resolve argocd.home.lab:443:10.0.20.80 \
             https://argocd.home.lab/api/webhook \
             -H "Content-Type: application/json" \
-            -d '{
-              "ref": "refs/heads/master",
-              "repository": {
-                "clone_url": "https://github.com/azskylab/workouttracker.git"
+            -H "X-GitHub-Event: push" \
+            -d "{
+              \"ref\": \"refs/heads/master\",
+              \"after\": \"${GITHUB_SHA}\",
+              \"repository\": {
+                \"html_url\": \"https://github.com/AzSkyLab/workouttracker\",
+                \"clone_url\": \"https://github.com/AzSkyLab/workouttracker.git\",
+                \"ssh_url\": \"git@github.com:AzSkyLab/workouttracker.git\"
               }
-            }' || echo "ArgoCD webhook failed — will sync on next poll"
+            }" || echo "ArgoCD webhook failed — will sync on next poll"
