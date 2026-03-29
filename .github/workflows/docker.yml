@@ -111,3 +111,15 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "chore: update k8s image tags to ${SHORT_SHA}"
           git push
+
+      - name: Trigger ArgoCD sync
+        run: |
+          curl -sSf -k -X POST \
+            https://argocd-server.argocd.svc.cluster.local/api/webhook \
+            -H "Content-Type: application/json" \
+            -d '{
+              "ref": "refs/heads/master",
+              "repository": {
+                "clone_url": "https://github.com/azskylab/workouttracker.git"
+              }
+            }' || echo "ArgoCD webhook failed — will sync on next poll"
