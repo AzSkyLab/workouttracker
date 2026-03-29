@@ -240,13 +240,32 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
                               </div>
                             </div>
                           )}
-                          <button
-                            onClick={() => setEditingSetId(null)}
-                            className="btn btn-primary"
-                            style={{ fontSize: '0.75rem', padding: '0.5rem 1rem', whiteSpace: 'nowrap' }}
-                          >
-                            Done
-                          </button>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <button
+                              onClick={() => setEditingSetId(null)}
+                              className="btn btn-primary"
+                              style={{ fontSize: '0.75rem', padding: '0.5rem 1rem', whiteSpace: 'nowrap' }}
+                            >
+                              Done
+                            </button>
+                            {set.completed && !isCardio && (
+                              <button
+                                onClick={() => { handleUpdateSet(set.id, 'completed', false); setEditingSetId(null); }}
+                                style={{
+                                  fontSize: '0.625rem',
+                                  fontWeight: 700,
+                                  color: '#dc2626',
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  padding: '0.125rem',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                Mark Failed
+                              </button>
+                            )}
+                          </div>
                         </>
                       ) : (
                         // Display Mode
