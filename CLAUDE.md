@@ -243,6 +243,38 @@ Copy from `.env.example` in that directory.
 2. Run `npm run build` from `packages/shared/` (or let backend/frontend auto-rebuild)
 3. Both frontend and backend reference these types automatically
 
+### Adding Exercises or Workout Templates
+
+Scripts in `packages/backend/prisma/`, run with `npx tsx prisma/<script>.ts` and
+a `DATABASE_URL` from the cluster secret (see Initial Database Setup):
+
+| Script | Purpose |
+|--------|---------|
+| `seed.ts` | Seeds muscle groups, categories, and the full exercise library from `exercise-data.json`. Upserts by name. |
+| `seed-recomp-templates.ts` | 6-day recomp program (Mon–Sat templates) |
+| `seed-3day-templates.ts` | 3-day full-body program (Day 1/2/3), scheduled Mon/Wed/Fri |
+| `update-recomp-notes.ts` | One-off note edits on existing recomp templates |
+
+**New exercises belong in `exercise-data.json`, not inline in a seed script.**
+`seed.ts` upserts the whole file by name, so anything defined only inside a
+one-off script is lost the next time the library is reseeded. Template scripts
+should read their exercise definitions back out of the JSON.
+
+Conventions these scripts follow, worth preserving since they run against live
+production data:
+
+- Idempotent — check for an existing record and skip rather than duplicating,
+  so a re-run is safe.
+- Resolve every exercise name to an ID *before* creating the template, so a typo
+  cannot leave a half-populated template behind.
+- Templates attach to `prisma.user.findFirst()`. Fine for a single-user
+  deployment; scope by email if that ever changes.
+- `WorkoutSchedule` is unique on `(userId, dayOfWeek)` with `0 = Sunday`. Check
+  whether a day is already occupied before claiming it.
+- The JSON is formatted with 2-space indent but **inline string arrays**
+  (`"aliases": ["a", "b"]`). A naive `json.dump(indent=2)` reformats all 137
+  entries — append by hand or the diff becomes unreviewable.
+
 ## Testing Locally
 
 1. Check health: http://localhost:3000/health
@@ -345,17 +377,38 @@ kubectl exec deploy/backend -n workout-tracker -- npx prisma db push
 
 # Seed from local machine (tsx is not in the production image)
 cd packages/backend
-DATABASE_URL="postgresql://workouttracker:<password>@10.0.30.10:5432/workouttracker" npx tsx prisma/seed.ts
+DATABASE_URL=$(kubectl get secret workout-tracker-secrets -n workout-tracker -o jsonpath='{.data.DATABASE_URL}' | base64 -d) npx tsx prisma/seed.ts
 ```
+
+There is no local development database configured (`packages/backend/.env` is not
+checked in). Seed scripts are run from a local machine straight against the
+production database, so the connection string comes from the cluster secret as
+shown above. `workout-tracker-secrets` also holds `JWT_SECRET`,
+`JWT_REFRESH_SECRET`, and `LITELLM_API_KEY`.
 
 ### Verify Deployment
 
 ```bash
 # Check ArgoCD UI at https://argocd.home.lab
 kubectl get pods -n workout-tracker
+kubectl rollout status deploy/backend -n workout-tracker
 # App accessible at https://workout.home.lab
-# Health check: https://workout.home.lab/api/v1/health
 ```
+
+The backend health routes are registered at the service root (`/health`,
+`/ready`), *not* under `/api/v1`. The ingress routes `/api` to the backend and
+`/` to the frontend, so `https://workout.home.lab/health` reaches the frontend
+SPA and returns 200 regardless of backend state — it is not a valid health
+check. Query the backend directly instead:
+
+```bash
+POD_IP=$(kubectl get pod -n workout-tracker -l app=backend -o jsonpath='{.items[0].status.podIP}')
+kubectl exec -n workout-tracker deploy/backend -- wget -qO- "http://${POD_IP}:3000/health"  # {"status":"ok"}
+kubectl exec -n workout-tracker deploy/backend -- wget -qO- "http://${POD_IP}:3000/ready"   # {"status":"ready","database":"connected"}
+```
+
+Use the pod IP rather than `localhost` — `localhost` resolves to IPv6 inside the
+container and the connection is refused.
 
 ## Important Implementation Details
 
@@ -374,6 +427,34 @@ Backend CORS allows credentials and uses `FRONTEND_URL` environment variable (`h
 ### Database Indexes
 
 All foreign keys have indexes. Additional indexes on `User.email`, `Exercise.muscleGroup`, `Exercise.category`, `Workout.status`, and `Workout.startedAt` for common queries.
+
+### Exercise Type Constraints (STRENGTH vs CARDIO)
+
+An exercise's `type` decides how the whole logging UI behaves, so it is a
+functional choice rather than a classification detail. `SetLogger` branches on
+it (`packages/frontend/src/components/SetLogger.tsx`):
+
+| | STRENGTH | CARDIO |
+|---|---|---|
+| Sets loggable | `targetSets` | **1 only** (`maxSets = isCardio ? 1 : ...`) |
+| Fields recorded | reps, weight, RPE | duration, distance, calories |
+| Weight tracked | yes | **no** |
+
+Consequences when adding exercises:
+
+- **Anything needing per-set load or multiple logged sets must be `STRENGTH`**,
+  even when the prescription is time-based. Loaded carries (Farmer Carry,
+  Suitcase Carry) are `STRENGTH` with `targetReps: 1` and the hold duration in
+  `notes` ("30-45 sec per set"), because tracking the weight is the point.
+- A template may set `targetSets > 1` on a CARDIO exercise and it will display,
+  but only one set can actually be logged against it.
+- The library holds both `Kettlebell Swing` (STRENGTH, for sets-and-reps power
+  work) and `Kettlebell Swings` (CARDIO, for conditioning). Similar names,
+  deliberately different types — pick by how it will be logged.
+
+`TemplateExercise.targetReps` is a single `Int`, so a prescribed rep *range* has
+to collapse to one working target. Convention is to store the working number and
+keep the full range in `notes` ("PUSH — 6-10 reps").
 
 ## Code Conventions
 
