@@ -1,6 +1,15 @@
 import { useState } from 'react';
-import { WorkoutExercise, ExerciseType } from '@workout-tracker/shared';
+import { WorkoutExercise, ExerciseType, Set as WorkoutSet, UpdateSetDto } from '@workout-tracker/shared';
 import { useWorkout } from '../contexts/WorkoutContext';
+
+interface EditDraft {
+  reps: string;
+  weight: string;
+  rpe: string;
+  durationMinutes: string;
+  distanceMiles: string;
+  caloriesBurned: string;
+}
 
 interface SetLoggerProps {
   workoutExercise: WorkoutExercise;
@@ -10,6 +19,7 @@ interface SetLoggerProps {
 export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerProps) {
   const isCardio = workoutExercise.exercise?.type === ExerciseType.CARDIO;
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
 
   const getInitialWeight = () => {
     if (workoutExercise.sets.length > 0) {
@@ -17,6 +27,14 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
       return lastSet.weight || 0;
     }
     return workoutExercise.suggestedWeight || 0;
+  };
+
+  const getInitialReps = () => {
+    if (workoutExercise.sets.length > 0) {
+      const lastSet = workoutExercise.sets[workoutExercise.sets.length - 1];
+      return lastSet.reps ?? workoutExercise.targetReps;
+    }
+    return workoutExercise.targetReps;
   };
 
   const getInitialDuration = () => {
@@ -36,7 +54,7 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
   };
 
   // Strength exercise state (string-based to allow clearing inputs)
-  const [reps, setReps] = useState(String(workoutExercise.targetReps));
+  const [reps, setReps] = useState(String(getInitialReps()));
   const [weight, setWeight] = useState(getInitialWeight() ? String(getInitialWeight()) : '');
   const [rpe, setRpe] = useState<number | undefined>(undefined);
 
@@ -77,8 +95,7 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
           completed: !failed,
           notes: trimmedNotes,
         });
-        // Reset reps to target for next set, keep weight the same
-        setReps(String(workoutExercise.targetReps));
+        // Keep reps and weight for the next set so an override carries forward
         setRpe(undefined);
       }
       // Tell parent whether this was the last set
@@ -96,6 +113,55 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
       await updateSet(setId, { [field]: value });
     } catch (error) {
       console.error('Failed to update set:', error);
+    }
+  };
+
+  // Edits go into a local draft and are saved once on Done. Saving per keystroke
+  // raced (each one fired a PUT + refetch) and the input snapped back to server state.
+  const startEditing = (set: WorkoutSet) => {
+    setEditDraft({
+      reps: set.reps != null ? String(set.reps) : '',
+      weight: set.weight != null ? String(set.weight) : '',
+      rpe: set.rpe != null ? String(set.rpe) : '',
+      durationMinutes: set.durationMinutes != null ? String(set.durationMinutes) : '',
+      distanceMiles: set.distanceMiles != null ? String(set.distanceMiles) : '',
+      caloriesBurned: set.caloriesBurned != null ? String(set.caloriesBurned) : '',
+    });
+    setEditingSetId(set.id);
+  };
+
+  const updateDraft = (field: keyof EditDraft, value: string) => {
+    setEditDraft((prev) => (prev ? { ...prev, [field]: value } : prev));
+  };
+
+  const saveEdit = async (set: WorkoutSet, extra: UpdateSetDto = {}) => {
+    if (!editDraft) return;
+    const changes: UpdateSetDto = { ...extra };
+    if (isCardio) {
+      const durationMinutes = Number(editDraft.durationMinutes) || 0;
+      const distanceMiles = Number(editDraft.distanceMiles) || 0;
+      const caloriesBurned = editDraft.caloriesBurned ? Number(editDraft.caloriesBurned) : null;
+      if (durationMinutes !== (set.durationMinutes ?? 0)) changes.durationMinutes = durationMinutes;
+      if (distanceMiles !== (set.distanceMiles ?? 0)) changes.distanceMiles = distanceMiles;
+      if (caloriesBurned !== (set.caloriesBurned ?? null)) changes.caloriesBurned = caloriesBurned;
+    } else {
+      const reps = Number(editDraft.reps) || 0;
+      const weight = Number(editDraft.weight) || 0;
+      const rpe = editDraft.rpe ? Math.min(10, Math.max(1, Number(editDraft.rpe))) : null;
+      if (reps !== (set.reps ?? 0)) changes.reps = reps;
+      if (weight !== (set.weight ?? 0)) changes.weight = weight;
+      if (rpe !== (set.rpe ?? null)) changes.rpe = rpe;
+    }
+
+    try {
+      if (Object.keys(changes).length > 0) {
+        await updateSet(set.id, changes);
+      }
+      setEditingSetId(null);
+      setEditDraft(null);
+    } catch (error) {
+      console.error('Failed to update set:', error);
+      alert('Could not save the set. Check your connection and try again.');
     }
   };
 
@@ -157,8 +223,8 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
                                 <input
                                   type="number"
                                   className="input"
-                                  value={set.durationMinutes || 0}
-                                  onChange={(e) => handleUpdateSet(set.id, 'durationMinutes', Number(e.target.value))}
+                                  value={editDraft?.durationMinutes ?? ''}
+                                  onChange={(e) => updateDraft('durationMinutes', e.target.value)}
                                   style={{ padding: '0.5rem', fontSize: '0.875rem', width: '100%' }}
                                   placeholder="Minutes"
                                 />
@@ -170,8 +236,8 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
                                 <input
                                   type="number"
                                   className="input"
-                                  value={set.distanceMiles || 0}
-                                  onChange={(e) => handleUpdateSet(set.id, 'distanceMiles', Number(e.target.value))}
+                                  value={editDraft?.distanceMiles ?? ''}
+                                  onChange={(e) => updateDraft('distanceMiles', e.target.value)}
                                   step="0.1"
                                   style={{ padding: '0.5rem', fontSize: '0.875rem', width: '100%' }}
                                   placeholder="Miles"
@@ -184,8 +250,8 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
                                 <input
                                   type="number"
                                   className="input"
-                                  value={set.caloriesBurned || ''}
-                                  onChange={(e) => handleUpdateSet(set.id, 'caloriesBurned', e.target.value ? Number(e.target.value) : 0)}
+                                  value={editDraft?.caloriesBurned ?? ''}
+                                  onChange={(e) => updateDraft('caloriesBurned', e.target.value)}
                                   style={{ padding: '0.5rem', fontSize: '0.875rem', width: '100%' }}
                                   placeholder="Calories"
                                 />
@@ -200,8 +266,8 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
                                 <input
                                   type="number"
                                   className="input"
-                                  value={set.reps || 0}
-                                  onChange={(e) => handleUpdateSet(set.id, 'reps', Number(e.target.value))}
+                                  value={editDraft?.reps ?? ''}
+                                  onChange={(e) => updateDraft('reps', e.target.value)}
                                   style={{ padding: '0.5rem', fontSize: '0.875rem', width: '100%' }}
                                   placeholder="Reps"
                                 />
@@ -213,8 +279,8 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
                                 <input
                                   type="number"
                                   className="input"
-                                  value={set.weight || 0}
-                                  onChange={(e) => handleUpdateSet(set.id, 'weight', Number(e.target.value))}
+                                  value={editDraft?.weight ?? ''}
+                                  onChange={(e) => updateDraft('weight', e.target.value)}
                                   step="0.5"
                                   style={{ padding: '0.5rem', fontSize: '0.875rem', width: '100%' }}
                                   placeholder="Weight"
@@ -227,8 +293,8 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
                                 <input
                                   type="number"
                                   className="input"
-                                  value={set.rpe || ''}
-                                  onChange={(e) => handleUpdateSet(set.id, 'rpe', e.target.value ? Number(e.target.value) : 0)}
+                                  value={editDraft?.rpe ?? ''}
+                                  onChange={(e) => updateDraft('rpe', e.target.value)}
                                   min={1}
                                   max={10}
                                   style={{ padding: '0.5rem', fontSize: '0.875rem', width: '100%' }}
@@ -242,7 +308,7 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
                           )}
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                             <button
-                              onClick={() => setEditingSetId(null)}
+                              onClick={() => saveEdit(set)}
                               className="btn btn-primary"
                               style={{ fontSize: '0.75rem', padding: '0.5rem 1rem', whiteSpace: 'nowrap' }}
                             >
@@ -250,7 +316,7 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
                             </button>
                             {set.completed && !isCardio && (
                               <button
-                                onClick={() => { handleUpdateSet(set.id, 'completed', false); setEditingSetId(null); }}
+                                onClick={() => saveEdit(set, { completed: false })}
                                 style={{
                                   fontSize: '0.625rem',
                                   fontWeight: 700,
@@ -305,7 +371,7 @@ export default function SetLogger({ workoutExercise, onSetLogged }: SetLoggerPro
                             </div>
                           )}
                           <button
-                            onClick={() => setEditingSetId(set.id)}
+                            onClick={() => startEditing(set)}
                             className="btn btn-outline"
                             style={{ fontSize: '0.75rem', padding: '0.25rem 0.75rem', whiteSpace: 'nowrap' }}
                           >

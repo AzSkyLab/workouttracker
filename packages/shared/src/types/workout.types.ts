@@ -105,11 +105,11 @@ export interface UpdateSetDto {
   // Strength fields
   reps?: number;
   weight?: number;
-  rpe?: number;
+  rpe?: number | null; // null clears it
   // Cardio fields
   durationMinutes?: number;
   distanceMiles?: number;
-  caloriesBurned?: number;
+  caloriesBurned?: number | null;
   completed?: boolean;
   notes?: string;
 }

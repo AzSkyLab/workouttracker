@@ -42,11 +42,11 @@ const updateSetSchema = z.object({
   // Strength fields
   reps: z.number().min(0).optional(),
   weight: z.number().min(0).optional(),
-  rpe: z.number().min(1).max(10).optional(),
+  rpe: z.number().min(1).max(10).nullable().optional(),
   // Cardio fields
   durationMinutes: z.number().min(0).optional(),
   distanceMiles: z.number().min(0).optional(),
-  caloriesBurned: z.number().min(0).optional(),
+  caloriesBurned: z.number().min(0).nullable().optional(),
   completed: z.boolean().optional(),
   notes: z.string().optional(),
 });
