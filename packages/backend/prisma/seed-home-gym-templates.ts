@@ -57,7 +57,7 @@ const templates: { name: string; description: string; color: string; exercises: 
       { exerciseName: 'Dumbbell Romanian Deadlift', targetSets: 4, targetReps: 10, restBetweenSets: 120, restAfterExercise: 120, tempo: null, notes: 'HINGE — 8-12 reps' },
       { exerciseName: 'Barbell Bench Press', targetSets: 3, targetReps: 10, restBetweenSets: 120, restAfterExercise: 120, tempo: null, notes: 'PUSH — 8-12 reps. Only with a stable bench and safeties set; never bench alone without them' },
       { exerciseName: 'Dumbbell Row', targetSets: 3, targetReps: 10, restBetweenSets: 120, restAfterExercise: 120, tempo: null, notes: 'PULL — one arm, 8-12 per side' },
-      { exerciseName: 'Dumbbell Shoulder Press', targetSets: 3, targetReps: 10, restBetweenSets: 120, restAfterExercise: 90, tempo: null, notes: 'SHOULDERS — standing, 8-12 reps' },
+      { exerciseName: 'Overhead Press', targetSets: 3, targetReps: 10, restBetweenSets: 120, restAfterExercise: 90, tempo: null, notes: 'SHOULDERS — standing barbell, 8-12 reps' },
       { exerciseName: 'EZ-Bar Curl', targetSets: 3, targetReps: 12, restBetweenSets: 75, restAfterExercise: 75, tempo: null, notes: 'ARMS — 10-15 reps' },
       { exerciseName: 'Dead Bug', targetSets: 3, targetReps: 10, restBetweenSets: 60, restAfterExercise: 120, tempo: null, notes: 'CORE — 8-12 per side' },
       { exerciseName: 'Cycling', targetSets: 1, targetReps: 1, restBetweenSets: 0, restAfterExercise: 0, tempo: null, notes: 'NordicTrack, moderate 5-6/10 — can talk, not sing', targetDurationMinutes: 15 },
