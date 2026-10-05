@@ -210,6 +210,8 @@ export default function ActiveWorkout() {
   }
 
   const isCompleted = currentWorkout.status === WorkoutStatus.COMPLETED;
+  // Sticky on every screen size so the rest timer follows the page as you scroll
+  const showRestTimer = !isCompleted && (restTimer.isRunning || restTimer.isComplete);
   const startTime = new Date(currentWorkout.startedAt);
   const elapsedMinutes = Math.floor((Date.now() - startTime.getTime()) / 1000 / 60);
 
@@ -253,8 +255,8 @@ export default function ActiveWorkout() {
         </div>
       </div>
 
-      {!isCompleted && (restTimer.isRunning || restTimer.isComplete) && (
-        <div style={{ position: isMobile ? 'sticky' : 'relative', top: 0, zIndex: 100, backgroundColor: 'var(--background)', paddingBottom: '0.5rem' }}>
+      {showRestTimer && (
+        <div style={{ position: 'sticky', top: 0, zIndex: 100, backgroundColor: 'var(--background)', paddingBottom: '0.5rem' }}>
           <RestTimerBar timer={restTimer} />
         </div>
       )}
@@ -345,7 +347,7 @@ export default function ActiveWorkout() {
         </div>
 
         {!isMobile && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'sticky', top: '1rem', alignSelf: 'start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'sticky', top: showRestTimer ? '4.5rem' : '1rem', alignSelf: 'start' }}>
             <div>
               <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem' }}>
                 Calories Burned
