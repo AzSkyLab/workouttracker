@@ -253,6 +253,7 @@ a `DATABASE_URL` from the cluster secret (see Initial Database Setup):
 | `seed.ts` | Seeds muscle groups, categories, and the full exercise library from `exercise-data.json`. Upserts by name. |
 | `seed-recomp-templates.ts` | 6-day recomp program (Mon–Sat templates) |
 | `seed-3day-templates.ts` | 3-day full-body program (Day 1/2/3), scheduled Mon/Wed/Fri |
+| `seed-home-gym-templates.ts` | Home-gym Workout A / B (alternating weekly, not scheduled) |
 | `update-recomp-notes.ts` | One-off note edits on existing recomp templates |
 
 **New exercises belong in `exercise-data.json`, not inline in a seed script.**

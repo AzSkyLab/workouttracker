@@ -2190,5 +2190,37 @@
     "videoUrl": null,
     "aliases": ["Russian Swing", "Hardstyle Kettlebell Swing", "KB Swing"],
     "instructions": "Stand with feet slightly wider than shoulder-width, kettlebell on the floor in front of you. Hinge at the hips and hike the bell back between your legs. Snap your hips forward explosively to float the bell up to chest height, keeping your arms relaxed. Let it fall back into the hinge and repeat for the prescribed reps. This is a hip snap, not an arm raise."
+  },
+  {
+    "name": "Dumbbell Romanian Deadlift",
+    "description": "Hip-hinge hamstring and glute exercise performed with a pair of dumbbells, allowing a natural hand path and easy home-gym loading.",
+    "muscleGroup": "LEGS",
+    "category": "DUMBBELL",
+    "type": "STRENGTH",
+    "metValue": null,
+    "difficulty": "BEGINNER",
+    "force": "PULL",
+    "mechanic": "COMPOUND",
+    "secondaryMuscles": ["glutes", "lower back", "forearms"],
+    "specificMuscle": "hamstrings",
+    "videoUrl": null,
+    "aliases": ["DB RDL", "Dumbbell RDL", "DB Romanian Deadlift"],
+    "instructions": "Stand tall holding a dumbbell in each hand in front of your thighs. With a soft bend in your knees, push your hips back and slide the dumbbells down the front of your legs, keeping your back flat. Lower until you feel a strong hamstring stretch, usually around mid-shin. Drive your hips forward to return to standing, squeezing your glutes at the top."
+  },
+  {
+    "name": "Band Lat Pulldown",
+    "description": "Vertical pulling exercise using a resistance band anchored overhead, a home-gym substitute for the cable lat pulldown.",
+    "muscleGroup": "BACK",
+    "category": "BODYWEIGHT",
+    "type": "STRENGTH",
+    "metValue": null,
+    "difficulty": "BEGINNER",
+    "force": "PULL",
+    "mechanic": "COMPOUND",
+    "secondaryMuscles": ["biceps", "rear deltoid", "rhomboids"],
+    "specificMuscle": "latissimus dorsi",
+    "videoUrl": null,
+    "aliases": ["Resistance Band Lat Pulldown", "Banded Lat Pulldown", "Band Pulldown"],
+    "instructions": "Secure a resistance band to a sturdy high anchor rated for the load. Kneel or sit facing the anchor and grab the band with arms extended overhead. Pull your elbows down and back toward your ribs, squeezing your shoulder blades together. Control the band back to the start. Inspect the band and anchor before every session."
   }
 ]
