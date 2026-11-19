@@ -25,7 +25,7 @@ WORKDIR /app/packages/frontend
 RUN npm run build
 
 # Production stage with nginx
-FROM nginx:alpine
+FROM nginx:1.30-alpine
 
 # Copy built files
 COPY --from=builder /app/packages/frontend/dist /usr/share/nginx/html
